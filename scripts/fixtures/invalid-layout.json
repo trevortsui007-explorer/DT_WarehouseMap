@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 2,
+  "racks": [
+    {
+      "id": "750bfd5f-68aa-44de-8e53-b648e88aba09",
+      "spaceId": "main",
+      "fgCode": "FG01",
+      "name": "R-01",
+      "x": 3,
+      "y": 4,
+      "cols": 6,
+      "levels": 1,
+      "width": 1.35,
+      "depth": 1.4,
+      "levelHeight": 1.5,
+      "rotation": 0,
+      "slots": [
+        {
+          "id": "4d942b71-d51d-46ed-95dc-b55fbfcc345c",
+          "level": 1,
+          "col": 1,
+          "code": "R-01-01-1",
+          "cartons": 0
+        },
+        {
+          "id": "91b04f25-f2cf-4913-935c-eff55f162893",
+          "level": 1,
+          "col": 2,
+          "code": "R-01-02-1",
+          "cartons": 10
+        },
+        {
+          "id": "fe90c19e-e792-48a3-8571-15825b874183",
+          "level": 1,
+          "col": 3,
+          "code": "R-01-03-1",
+          "cartons": 17
+        },
+        {
+          "id": "f9b461c1-94c6-4068-a095-5e3f1ef3a049",
+          "level": 1,
+          "col": 4,
+          "code": "R-01-04-1",
+          "cartons": 6
+        },
+        {
+          "id": "97d39eb2-c2cc-42f9-97f0-4e0109c87686",
+          "level": 1,
+          "col": 5,
+          "code": "R-01-05-1",
+          "cartons": 13
+        },
+        {
+          "id": "df47eff8-0617-48aa-ad81-6e017653391d",
+          "level": 1,
+          "col": 6,
+          "code": "R-01-06-1",
+          "cartons": 0
+        }
+      ]
+    },
+    {
+      "id": "4c51e3ce-515d-409b-9fa3-be7dbb12f2f8",
+      "spaceId": "main",
+      "fgCode": "FG02",
+      "name": "R-02",
+      "x": 13,
+      "y": 4,
+      "cols": 6,
+      "levels": 2,
+      "width": 1.35,
+      "depth": 1.4,
+      "levelHeight": 1.5,
+      "rotation": 0,
+      "slots": [
+        {
+          "id": "a95abfb5-3b60-4455-8c00-e5eea59275b6",
+          "level": 1,
+          "col": 1,
+          "code": "R-01-01-1",
+          "cartons": 6
+        },
+        {
+          "id": "cbda7320-d602-4ddb-969d-e1f85c47d71c",
+          "level": 1,
+          "col": 2,
+          "code": "R-02-02-1",
+          "cartons": 13
+        },
+        {
+          "id": "dff77258-b864-4c4f-b81d-715997e36a1d",
+          "level": 1,
+          "col": 3,
+          "code": "R-02-03-1",
+          "cartons": 20
+        },
+        {
+          "id": "58d2addf-c8aa-4a67-b537-904fa78c9967",
+          "level": 1,
+          "col": 4,
+          "code": "R-02-04-1",
+          "cartons": 9
+        },
+        {
+          "id": "c5d36644-7e1f-4b14-a714-3105fda21998",
+          "level": 1,
+          "col": 5,
+          "code": "R-02-05-1",
+          "cartons": 0
+        },
+        {
+          "id": "0972645e-25fe-4e85-bc3e-9f4728fd0a45",
+          "level": 1,
+          "col": 6,
+          "code": "R-02-06-1",
+          "cartons": 5
+        },
+        {
+          "id": "2c04c6c5-7b13-4dce-8c49-9c31841b82bc",
+          "level": 2,
+          "col": 1,
+          "code": "R-02-01-2",
+          "cartons": 12
+        },
+        {
+          "id": "74ce92a2-3f78-4e5d-8b51-6da7a57aec83",
+          "level": 2,
+          "col": 2,
+          "code": "R-02-02-2",
+          "cartons": 19
+        },
+        {
+          "id": "ab9fd556-883b-452f-a41a-a0246fd68ddb",
+          "level": 2,
+          "col": 3,
+          "code": "R-02-03-2",
+          "cartons": 8
+        },
+        {
+          "id": "b1aceec4-87f6-4cc7-8003-2e740657ab90",
+          "level": 2,
+          "col": 4,
+          "code": "R-02-04-2",
+          "cartons": 0
+        },
+        {
+          "id": "a2f29bed-37eb-4bfb-9f66-e0a92242933c",
+          "level": 2,
+          "col": 5,
+          "code": "R-02-05-2",
+          "cartons": 4
+        },
+        {
+          "id": "9f13a54b-189f-4663-8e7c-ae165bd238c5",
+          "level": 2,
+          "col": 6,
+          "code": "R-02-06-2",
+          "cartons": 11
+        }
+      ]
+    }
+  ],
+  "boundary": {
+    "id": "boundary",
+    "name": "成品仓边界",
+    "x": -2,
+    "y": -2,
+    "width": 38,
+    "depth": 39,
+    "rotation": 0,
+    "doors": [
+      {
+        "id": "door-test",
+        "name": "导入验证门",
+        "side": "bottom",
+        "type": "inbound",
+        "width": 3,
+        "offset": 5
+      }
+    ]
+  },
+  "areas": []
+}

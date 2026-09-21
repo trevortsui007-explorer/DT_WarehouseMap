@@ -1,0 +1,52 @@
+# ==============================
+# Dependencies
+# ==============================
+node_modules/
+
+# ==============================
+# Environment
+# ==============================
+.env
+.env.local
+.env.*.local
+
+# ==============================
+# Logs
+# ==============================
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ==============================
+# IDE / Editor
+# ==============================
+.idea/
+.vscode/
+
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ==============================
+# OS
+# ==============================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==============================
+# Temporary files
+# ==============================
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# ==============================
+# Important:
+# dist/ IS SOURCE CODE IN THIS PROJECT.
+# DO NOT IGNORE dist/.
+# ==============================

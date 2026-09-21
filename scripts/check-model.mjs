@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {seed,slots,validate,migrate} from '../dist/model.js';
+const model=seed(),r=model.racks[0];
+const ids=model.racks.flatMap(r=>r.slots.map(s=>s.id));
+const codes=model.racks.flatMap(r=>r.slots.map(s=>s.code));
+assert.equal(new Set(ids).size,ids.length);assert.equal(new Set(codes).size,codes.length);
+const expanded=slots({...r,levels:3},r.slots);assert.equal(expanded.length,r.cols*3);assert.equal(expanded[0].id,r.slots[0].id);assert.equal(expanded[0].cartons,r.slots[0].cartons);
+assert(slots({...r,name:'COPY'}).every(s=>s.cartons===0&&!ids.includes(s.id)));
+assert.throws(()=>validate({...r,levels:4},model.racks));assert.throws(()=>validate({...r,width:-1},model.racks));assert.throws(()=>validate({...r,name:model.racks[1].name},model.racks));
+console.log('PASS: stable slot identity, unique codes, empty copies, layout validation');
+const legacy={schemaVersion:1,racks:[{...r,zone:'B'}]};const upgraded=migrate(legacy);
+assert.equal(upgraded.schemaVersion,2);assert.equal(upgraded.racks[0].fgCode,'FG02');assert.equal(upgraded.racks[0].spaceId,'main');assert.equal(upgraded.racks[0].x,r.x);assert.deepEqual(upgraded.racks[0].slots,r.slots);assert.equal(legacy.schemaVersion,1);
+assert.equal(model.racks.filter(r=>r.fgCode==='FG01').length,9);assert.equal(model.racks.filter(r=>r.fgCode==='FG02').length,9);
+console.log('PASS: legacy FG migration preserves coordinates and slots; shared-space FG counts');
