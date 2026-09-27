@@ -1,0 +1,6 @@
+dist/
+node_modules/
+tmp/
+docs/
+package-lock.json
+scripts/fixtures/
