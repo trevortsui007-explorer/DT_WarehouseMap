@@ -45,8 +45,6 @@ temp/
 *.bak
 *.swp
 
-# ==============================
-# Important:
-# dist/ IS SOURCE CODE IN THIS PROJECT.
-# DO NOT IGNORE dist/.
-# ==============================
+
+# Generated build output
+dist/
