@@ -1,14 +1,48 @@
 import assert from 'node:assert/strict';
-import {seed} from '../dist/model.js';
-import {ensureSpatial} from '../dist/spatial.js';
-import {validateLayout,parseLayout,createLayoutStore,STORE_KEY} from '../dist/layout-store.js';
-const m=ensureSpatial(seed()),initial=JSON.stringify(m),db=new Map();let fail=false;
-const storage={getItem:k=>db.get(k)||null,setItem(k,v){if(fail)throw Error('QuotaExceeded');db.set(k,v);}};
-const store=createLayoutStore(storage);store.save(m,'初始版本');assert.deepEqual(store.load().model,m);
-const changed=structuredClone(m);changed.racks[0].x+=1;store.save(changed,'自动备份');assert.equal(store.history().length,3);
-store.save(m,'恢复',changed);assert.equal(store.history()[1].label,'替换前备份');assert.deepEqual(store.history()[1].model,changed);
-const raw=db.get(STORE_KEY);fail=true;assert.throws(()=>store.save(changed,'失败保存'));assert.equal(db.get(STORE_KEY),raw);fail=false;
-const bad=structuredClone(m);bad.racks[1].slots[0].code=bad.racks[0].slots[0].code;assert.throws(()=>validateLayout(bad),/重复/);bad.racks[1].slots[0].code='unique';bad.racks[0].slots[0].col=99;assert.throws(()=>validateLayout(bad),/位置/);
-assert.throws(()=>parseLayout('{bad'));assert.throws(()=>validateLayout({...m,schemaVersion:99}));assert.throws(()=>validateLayout({...m,areas:[{id:'<script>',name:'x'}]}));
-for(let i=0;i<25;i++)store.save(m,'版本'+i);assert.equal(store.history().length,20);assert.equal(JSON.stringify(m),initial);
+import { seed } from '../src/core/model/model.js';
+import { ensureSpatial } from '../src/core/spatial/spatial.js';
+import {
+  validateLayout,
+  parseLayout,
+  createLayoutStore,
+  STORE_KEY,
+} from '../src/infrastructure/persistence/layout-store.js';
+const m = ensureSpatial(seed()),
+  initial = JSON.stringify(m),
+  db = new Map();
+let fail = false;
+const storage = {
+  getItem: k => db.get(k) || null,
+  setItem(k, v) {
+    if (fail) throw Error('QuotaExceeded');
+    db.set(k, v);
+  },
+};
+const store = createLayoutStore(storage);
+store.save(m, '初始版本');
+assert.deepEqual(store.load().model, m);
+const changed = structuredClone(m);
+changed.racks[0].x += 1;
+store.save(changed, '自动备份');
+assert.equal(store.history().length, 3);
+store.save(m, '恢复', changed);
+assert.equal(store.history()[1].label, '替换前备份');
+assert.deepEqual(store.history()[1].model, changed);
+const raw = db.get(STORE_KEY);
+fail = true;
+assert.throws(() => store.save(changed, '失败保存'));
+assert.equal(db.get(STORE_KEY), raw);
+fail = false;
+const bad = structuredClone(m);
+bad.racks[1].slots[0].code = bad.racks[0].slots[0].code;
+assert.throws(() => validateLayout(bad), /重复/);
+bad.racks[1].slots[0].code = 'unique';
+bad.racks[0].slots[0].col = 99;
+assert.throws(() => validateLayout(bad), /位置/);
+assert.throws(() => parseLayout('{bad'));
+assert.throws(() => validateLayout({ ...m, schemaVersion: 99 }));
+assert.throws(() => validateLayout({ ...m, areas: [{ id: '<script>', name: 'x' }] }));
+for (let i = 0; i < 25; i++) store.save(m, '版本' + i);
+assert.equal(store.history().length, 20);
+assert.equal(JSON.stringify(m), initial);
 console.log('PASS: validated import, version recovery, before-replace backup, quota atomicity, history cap');

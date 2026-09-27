@@ -1,17 +1,62 @@
 import assert from 'node:assert/strict';
-import {validateDoors,wallSegments,edgePoints,newDoor,draggedDoorOffset} from '../dist/doors.js';
-const b={x:2,y:3,width:20,depth:10,doors:[]};
-const d={id:'d1',name:'入库门',type:'inbound',side:'bottom',offset:4,width:3};b.doors=[d];validateDoors(b);
-assert.deepEqual(edgePoints(b,'bottom',4,7),[{x:6,y:13},{x:9,y:13}]);
-const walls=wallSegments(b);assert.equal(walls.length,5);assert.equal(walls.reduce((n,[p,q])=>n+Math.hypot(q.x-p.x,q.y-p.y),0),57);
-assert.throws(()=>validateDoors({...b,width:6}));assert.throws(()=>validateDoors({...b,doors:[d,{...d,id:'d2',offset:6}]}));
-validateDoors({...b,doors:[d,{...d,id:'d2',offset:7}]});assert.throws(()=>validateDoors({...b,doors:[{...d,offset:-1}]}));assert.throws(()=>validateDoors({...b,doors:[{...d,width:NaN}]}));
-const fresh=newDoor(b);validateDoors({...b,doors:[d,fresh]});assert.equal(fresh.offset,0);
-const moved={...b,x:12,y:23};assert.deepEqual(edgePoints(moved,'bottom',4,7),[{x:16,y:33},{x:19,y:33}]);
-const filled={...b,doors:['top','bottom','left','right'].map((side,i)=>({...d,id:String(i),side,offset:0,width:['top','bottom'].includes(side)?20:10}))};validateDoors(filled);assert.equal(wallSegments(filled).length,0);assert.throws(()=>newDoor(filled));
-assert.deepEqual(wallSegments(JSON.parse(JSON.stringify(b))),wallSegments(b));validateDoors({...b,doors:undefined});
-console.log('PASS: door openings, boundary-relative positions, resize and overlap protection, serialization, fully occupied edges');
-assert.equal(draggedDoorOffset(b,d,2.04),6);assert.equal(draggedDoorOffset(b,d,-100),0);assert.equal(draggedDoorOffset(b,d,100),17);
-assert.equal(draggedDoorOffset(b,{...d,side:'right'},100),7);assert.equal(draggedDoorOffset(b,d,.234,false),4.234);
-assert.throws(()=>validateDoors({...b,doors:[{...d,offset:draggedDoorOffset(b,d,3)},{...d,id:'neighbor',offset:8}]}));
+import { validateDoors, wallSegments, edgePoints, newDoor, draggedDoorOffset } from '../src/core/doors/doors.js';
+const b = { x: 2, y: 3, width: 20, depth: 10, doors: [] };
+const d = { id: 'd1', name: '入库门', type: 'inbound', side: 'bottom', offset: 4, width: 3 };
+b.doors = [d];
+validateDoors(b);
+assert.deepEqual(edgePoints(b, 'bottom', 4, 7), [
+  { x: 6, y: 13 },
+  { x: 9, y: 13 },
+]);
+const walls = wallSegments(b);
+assert.equal(walls.length, 5);
+assert.equal(
+  walls.reduce((n, [p, q]) => n + Math.hypot(q.x - p.x, q.y - p.y), 0),
+  57
+);
+assert.throws(() => validateDoors({ ...b, width: 6 }));
+assert.throws(() => validateDoors({ ...b, doors: [d, { ...d, id: 'd2', offset: 6 }] }));
+validateDoors({ ...b, doors: [d, { ...d, id: 'd2', offset: 7 }] });
+assert.throws(() => validateDoors({ ...b, doors: [{ ...d, offset: -1 }] }));
+assert.throws(() => validateDoors({ ...b, doors: [{ ...d, width: NaN }] }));
+const fresh = newDoor(b);
+validateDoors({ ...b, doors: [d, fresh] });
+assert.equal(fresh.offset, 0);
+const moved = { ...b, x: 12, y: 23 };
+assert.deepEqual(edgePoints(moved, 'bottom', 4, 7), [
+  { x: 16, y: 33 },
+  { x: 19, y: 33 },
+]);
+const filled = {
+  ...b,
+  doors: ['top', 'bottom', 'left', 'right'].map((side, i) => ({
+    ...d,
+    id: String(i),
+    side,
+    offset: 0,
+    width: ['top', 'bottom'].includes(side) ? 20 : 10,
+  })),
+};
+validateDoors(filled);
+assert.equal(wallSegments(filled).length, 0);
+assert.throws(() => newDoor(filled));
+assert.deepEqual(wallSegments(JSON.parse(JSON.stringify(b))), wallSegments(b));
+validateDoors({ ...b, doors: undefined });
+console.log(
+  'PASS: door openings, boundary-relative positions, resize and overlap protection, serialization, fully occupied edges'
+);
+assert.equal(draggedDoorOffset(b, d, 2.04), 6);
+assert.equal(draggedDoorOffset(b, d, -100), 0);
+assert.equal(draggedDoorOffset(b, d, 100), 17);
+assert.equal(draggedDoorOffset(b, { ...d, side: 'right' }, 100), 7);
+assert.equal(draggedDoorOffset(b, d, 0.234, false), 4.234);
+assert.throws(() =>
+  validateDoors({
+    ...b,
+    doors: [
+      { ...d, offset: draggedDoorOffset(b, d, 3) },
+      { ...d, id: 'neighbor', offset: 8 },
+    ],
+  })
+);
 console.log('PASS: horizontal/vertical door drag bounds, 0.1m snapping, Alt precision and overlap rejection');
