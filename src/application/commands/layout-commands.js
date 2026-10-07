@@ -1,3 +1,6 @@
+import { isFixture, validateFixture } from '../../core/spatial/fixtures.js';
+import { previewCodes } from '../../core/model/batch-codes.js';
+import { isRoom, doorOwner } from '../../core/spatial/rooms.js';
 import { slots, uid, validate } from '../../core/model/model.js';
 import { validateArea, AREA_TYPES } from '../../core/spatial/spatial.js';
 import { validateDoors, newDoor } from '../../core/doors/doors.js';
@@ -6,7 +9,63 @@ export function createLayoutCommands(api) {
   // 对象解构提取依赖方法；这些方法由调用方注入，命令本身不读写存储。
   const { current, chosen, spatial, cad, canEdit, execute } = api;
   return {
+    previewBatchCodes(rackId, changes) {
+      return previewCodes(api.model(), rackId, changes, slot => {
+        try {
+          api.assertCanRename?.(slot);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+    },
+    applyBatchCodes(rackId, changes) {
+      return execute('BatchLocationCodes', () => {
+        const rows = previewCodes(api.model(), rackId, changes, slot => {
+          api.assertCanRename?.(slot);
+          return true;
+        });
+        if (rows.some(row => row.error)) throw Error('请先修正空编码或重复编码');
+        const rack = api.model().racks.find(item => item.id === rackId);
+        for (const row of rows) rack.slots.find(slot => slot.id === row.id).code = row.code;
+      });
+    },
     // 创建具有新身份的货架和货位；查看全部 FG 时使用 FG01 作为新增归属。
+    addFixture() {
+      execute('CreateFixture', () => {
+        const b = api.model().boundary;
+        const fixture = {
+          id: uid(),
+          name: '固定设施',
+          type: 'cabinet',
+          x: b.x + 2,
+          y: b.y + 2,
+          width: 1,
+          depth: 0.6,
+          height: 2,
+          rotation: 0,
+        };
+        api.model().fixtures.push(fixture);
+        cad.set([fixture.id], false);
+      });
+    },
+    addRoom() {
+      execute('CreateRoom', () => {
+        const b = api.model().boundary;
+        const room = {
+          id: uid(),
+          name: '房间 ' + (api.model().rooms.length + 1),
+          x: b.x + 2,
+          y: b.y + 2,
+          width: 8,
+          depth: 6,
+          rotation: 0,
+          doors: [],
+        };
+        api.model().rooms.push(room);
+        cad.set([room.id], false);
+      });
+    },
     addRack(levels) {
       execute('CreateRack', () => {
         const fgCode = api.zone() === 'ALL' ? 'FG01' : api.zone();
@@ -106,6 +165,7 @@ export function createLayoutCommands(api) {
           depth: type === 'aisle' ? 2.5 : 5,
           rotation: 0,
         };
+        if (type === 'general') area.color = '#e4efdf';
         api.model().areas.push(area);
         cad.set([area.id], false);
       });
@@ -116,9 +176,14 @@ export function createLayoutCommands(api) {
       if (!area) return;
       execute(area.id === 'boundary' ? 'ResizeBoundary' : 'UpdateArea', () => {
         const next = { ...area };
-        for (const [key, value] of Object.entries(data)) next[key] = key === 'name' ? value.trim() : Number(value);
-        const boundary = area.id === 'boundary';
-        validateArea(next, boundary);
+        for (const [key, value] of Object.entries(data)) {
+          if (!['name', 'type', 'color', 'x', 'y', 'width', 'depth', 'height', 'rotation'].includes(key)) continue;
+          next[key] = ['name', 'type', 'color'].includes(key) ? String(value).trim() : Number(value);
+        }
+        if (isFixture(next) !== isFixture(area)) throw Error('不能改变对象类别');
+        const boundary = isRoom(area);
+        if (isFixture(next)) validateFixture(next);
+        else validateArea(next, boundary);
         if (boundary) validateDoors(next);
         Object.assign(area, next);
       });
@@ -127,7 +192,10 @@ export function createLayoutCommands(api) {
     removeArea() {
       const area = spatial.selected();
       if (!area || area.id === 'boundary') return;
+      if (isRoom(area) && !confirm('删除房间及所属门？内部货架和业务区域将保留。')) return;
       execute('DeleteObjects', () => {
+        api.model().fixtures = api.model().fixtures.filter(item => item.id !== area.id);
+        api.model().rooms = api.model().rooms.filter(room => room.id !== area.id);
         api.model().areas = api.model().areas.filter(item => item.id !== area.id);
         api.model().areaBindings = api.model().areaBindings.filter(binding => binding.areaId !== area.id);
         spatial.clear();
@@ -136,7 +204,8 @@ export function createLayoutCommands(api) {
     // 在可用边段寻找新门位置，再校验完整门集合。
     addDoor() {
       execute('CreateDoor', () => {
-        const boundary = api.model().boundary;
+        const boundary = spatial.selected();
+        if (!isRoom(boundary)) throw Error('请先选择房间或主边界');
         const door = newDoor(boundary);
         boundary.doors ??= [];
         boundary.doors.push(door);
@@ -146,7 +215,7 @@ export function createLayoutCommands(api) {
     // 先构造候选门集合校验，成功后才更新原门属性。
     updateDoor(id, data) {
       execute('UpdateDoor', () => {
-        const boundary = api.model().boundary,
+        const boundary = doorOwner(api.model(), id),
           door = boundary.doors.find(item => item.id === id),
           next = { ...door };
         for (const [key, value] of Object.entries(data))
@@ -158,7 +227,8 @@ export function createLayoutCommands(api) {
     // 只删除指定门，墙段由渲染器根据剩余门洞重新计算。
     removeDoor(id) {
       execute('DeleteDoor', () => {
-        api.model().boundary.doors = api.model().boundary.doors.filter(door => door.id !== id);
+        const room = doorOwner(api.model(), id);
+        if (room) room.doors = room.doors.filter(door => door.id !== id);
       });
     },
   };

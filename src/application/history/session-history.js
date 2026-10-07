@@ -52,6 +52,22 @@ export function createSessionHistory(api) {
   }
   return {
     execute,
+    // 本机附属记录保存失败时恢复本次命令前状态；不制造额外 Undo/Redo 项。
+    // 调用方在异步等待期间必须锁住编辑，不能跨越其他用户命令回滚。
+    checkpoint() {
+      api.beforeCommand();
+      const before = JSON.stringify(api.model()),
+        priorUndo = [...undo],
+        priorRedo = [...redo];
+      return () => {
+        api.replace(JSON.parse(before));
+        undo.splice(0, undo.length, ...priorUndo);
+        redo.splice(0, redo.length, ...priorRedo);
+        api.afterRestore();
+        api.changed();
+        api.render();
+      };
+    },
     record,
     undo: () => restore(undo, redo),
     redo: () => restore(redo, undo),

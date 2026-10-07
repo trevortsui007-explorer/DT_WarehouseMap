@@ -1,3 +1,5 @@
+import { isFixture, validateFixture } from '../../core/spatial/fixtures.js';
+import { isRoom } from '../../core/spatial/rooms.js';
 import { bounds, transform, validateObjects, copies } from '../../core/geometry/cad-geometry.js';
 import { validateArea } from '../../core/spatial/spatial.js';
 import { validateDoors } from '../../core/doors/doors.js';
@@ -32,14 +34,25 @@ export function createGeometryCommands(api) {
     copy(source, offsets) {
       api.execute('ArrayCopy', () => {
         const added = copies(source, offsets, api.model());
-        for (const object of added) (object.cols ? api.model().racks : api.model().areas).push(object);
+        for (const object of added)
+          (object.cols
+            ? api.model().racks
+            : isRoom(object)
+              ? api.model().rooms
+              : isFixture(object)
+                ? api.model().fixtures
+                : api.model().areas
+          ).push(object);
         api.select(added.map(object => object.id));
       });
     },
     // 删除地图对象时同时移除被删区域的绑定；不操作 WMS 库存或 CurrentLocation。
     remove(ids) {
       api.execute('DeleteObjects', () => {
+        if (ids.includes('boundary')) throw Error('主边界不能删除，请取消选择主边界');
         const model = api.model();
+        model.rooms = (model.rooms || []).filter(object => !ids.includes(object.id));
+        model.fixtures = (model.fixtures || []).filter(object => !ids.includes(object.id));
         model.racks = model.racks.filter(object => !ids.includes(object.id));
         model.areas = model.areas.filter(object => !ids.includes(object.id));
         model.areaBindings = (model.areaBindings || []).filter(binding => !ids.includes(binding.areaId));
@@ -50,7 +63,9 @@ export function createGeometryCommands(api) {
     resize(area, width, depth) {
       api.execute('UpdateArea', () => {
         const next = { ...area, width, depth };
-        validateArea(next);
+        if (isFixture(next)) validateFixture(next);
+        else validateArea(next, isRoom(next));
+        if (isRoom(next)) validateDoors(next);
         Object.assign(area, next);
       });
     },

@@ -1,15 +1,22 @@
+import { spaces, doorOwner } from '../../core/spatial/rooms.js';
 import { edgePoints } from '../../core/doors/doors.js';
 import { corners } from '../../core/spatial/spatial.js';
 // 协调区域、边界和门的主选状态；几何仍从共享模型读取。
 export function createSpatialEditor(api) {
   let active = null,
     activeDoor = null;
-  const selected = () => (active === 'boundary' ? api.model().boundary : api.model().areas.find(a => a.id === active));
+  const selected = () =>
+    active === 'boundary'
+      ? api.model().boundary
+      : [...api.model().areas, ...(api.model().fixtures || []), ...(api.model().rooms || [])].find(
+          a => a.id === active
+        );
   // 选择门时先清除其他选择，同时激活边界属性面板。
   function selectDoor(id, redraw = true) {
-    if (!api.model().boundary.doors?.some(d => d.id === id)) return;
+    const owner = doorOwner(api.model(), id);
+    if (!owner) return;
     api.prepareDoor();
-    active = 'boundary';
+    active = owner.id;
     activeDoor = id;
     if (redraw) api.render();
   }
@@ -18,7 +25,7 @@ export function createSpatialEditor(api) {
   }
   // 模型替换或删除后清除已失效的区域与门选择。
   function render() {
-    if (activeDoor && !api.model().boundary.doors?.some(d => d.id === activeDoor)) activeDoor = null;
+    if (activeDoor && !doorOwner(api.model(), activeDoor)) activeDoor = null;
     if (active && !selected()) active = null;
   }
 
@@ -27,8 +34,8 @@ export function createSpatialEditor(api) {
     activeId: () => active,
     // 将门洞线段扩展一米边距，给 F 聚焦提供可见范围。
     doorBounds() {
-      const b = api.model().boundary,
-        d = b.doors?.find(x => x.id === activeDoor);
+      const b = doorOwner(api.model(), activeDoor),
+        d = b?.doors?.find(x => x.id === activeDoor);
       if (!d) return null;
       const [p, q] = edgePoints(b, d.side, d.offset, d.offset + d.width);
       return {
@@ -54,7 +61,11 @@ export function createSpatialEditor(api) {
     },
     // 汇总边界与区域角点，供视图计算整体范围。
     points() {
-      return [...corners(api.model().boundary), ...api.model().areas.flatMap(corners)];
+      return [
+        ...spaces(api.model()).flatMap(corners),
+        ...api.model().areas.flatMap(corners),
+        ...(api.model().fixtures || []).flatMap(corners),
+      ];
     },
   };
 }

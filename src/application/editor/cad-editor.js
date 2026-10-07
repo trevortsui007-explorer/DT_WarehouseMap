@@ -1,3 +1,4 @@
+import { isRoom } from '../../core/spatial/rooms.js';
 import { createSelectionService } from '../selection/selection-service.js';
 import { createGeometryCommands } from '../commands/geometry-commands.js';
 import { createInteractionSurface } from '../../renderers/konva/interaction.js';
@@ -41,8 +42,9 @@ export function createCadEditor(api) {
     selection.set(next, redraw);
   }
   // 平移或刚结束拖动时忽略点击，避免释放鼠标误改选择。
-  function select(id, event) {
-    if (space || hand || suppressClick) return;
+  function select(id, event, explicit = false) {
+    // 画布拖动后的合成 click 需要抑制，侧栏明确选择不应被同一计时窗口拦截。
+    if (space || hand || (suppressClick && !explicit)) return;
     selection.select(id, event);
   }
   // 方向键连续移动作为一次编辑记录，松键、切换操作或失焦时结束。
@@ -83,7 +85,8 @@ export function createCadEditor(api) {
     }
     const list = objects();
     if (!list.length) return;
-    $('#delete-message').textContent = `删除所选 ${list.length} 个货架／区域？可撤销，不操作 WMS。`;
+    $('#delete-message').textContent =
+      `删除所选 ${list.length} 个对象？删除房间会同时删除所属门，未选中的内部对象保留。可撤销，不操作 WMS。`;
     $('#delete-dialog').showModal();
   }
   $('#delete-confirm').onclick = () => {
@@ -107,7 +110,7 @@ export function createCadEditor(api) {
         const source = drag.start.find(object => object.id === id);
         const snap = snapMove(
           drag.start,
-          [...editable().filter(object => !selection.ids.has(object.id)), api.model().boundary],
+          editable().filter(object => !selection.ids.has(object.id)),
           x - source.x,
           y - source.y,
           7 / (unit * surface.scale()),
@@ -209,6 +212,7 @@ export function createCadEditor(api) {
   function showPrecise() {
     if (api.view() !== '2d' || !objects().length) return;
     $('#precise-form').reset();
+    $('#precise-form [name=angle]').disabled = objects().some(isRoom);
     $('#precise-error').textContent = '';
     const b = bounds(objects());
     $('#pivot-x').value = (b.x + b.width / 2).toFixed(3);
@@ -225,7 +229,7 @@ export function createCadEditor(api) {
           ? { x: Number(f.get('px')), y: Number(f.get('py')) }
           : { x: b.x + b.width / 2, y: b.y + b.depth / 2 };
     try {
-      const next = transform(list, Number(f.get('dx')), Number(f.get('dy')), Number(f.get('angle')), pivot);
+      const next = transform(list, Number(f.get('dx')), Number(f.get('dy')), Number(f.get('angle') || 0), pivot);
       validateObjects(next, api.model());
       commitTransform(Number(f.get('dx')), Number(f.get('dy')), Number(f.get('angle')), pivot);
       $('#precise-dialog').close();
@@ -360,6 +364,10 @@ export function createCadEditor(api) {
     }
     if (['q', 'e'].includes(key) && !mod) {
       e.preventDefault();
+      if (objects().some(isRoom)) {
+        api.toast('房间保持轴对齐，请取消选择房间后旋转');
+        return;
+      }
       if (!e.repeat) {
         finishNudge();
         commitTransform(0, 0, key === 'q' ? -90 : 90);

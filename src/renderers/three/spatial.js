@@ -1,3 +1,5 @@
+import { FIXTURE_TYPES } from '../../core/spatial/fixtures.js';
+import { spaces } from '../../core/spatial/rooms.js';
 import * as THREE from 'three';
 import { wallSegments, edgePoints, DOOR_TYPES } from '../../core/doors/doors.js';
 import { AREA_TYPES } from '../../core/spatial/spatial.js';
@@ -41,44 +43,67 @@ export function drawSpatial3d(api, world, box) {
   }
   // 复用 Core 的墙段与门洞位置，保持二维、三维空间一致。
   function draw3d(world, box) {
-    const m = api.model(),
-      b = m.boundary;
-    box(world, b.width, 0.025, b.depth, b.x + b.width / 2, -0.06, b.y + b.depth / 2, '#f9fbfc');
-    for (const [p, q] of wallSegments(b))
+    const m = api.model();
+    for (const b of spaces(m)) {
+      box(world, b.width, 0.025, b.depth, b.x + b.width / 2, -0.06, b.y + b.depth / 2, '#f9fbfc');
+      for (const [p, q] of wallSegments(b))
+        box(
+          world,
+          Math.max(0.1, Math.abs(q.x - p.x)),
+          0.1,
+          Math.max(0.1, Math.abs(q.y - p.y)),
+          (p.x + q.x) / 2,
+          0,
+          (p.y + q.y) / 2,
+          '#9aabb7',
+          { areaId: b.id }
+        );
+      for (const d of b.doors || []) {
+        const [p, q] = edgePoints(b, d.side, d.offset, d.offset + d.width),
+          color = activeDoor === d.id ? '#b28b35' : DOOR_TYPES[d.type].color;
+        for (const v of [p, q]) box(world, 0.12, 2.4, 0.12, v.x, 1.2, v.y, color, { doorId: d.id, roomId: b.id });
+        box(
+          world,
+          Math.max(0.12, Math.abs(q.x - p.x)),
+          0.14,
+          Math.max(0.12, Math.abs(q.y - p.y)),
+          (p.x + q.x) / 2,
+          2.4,
+          (p.y + q.y) / 2,
+          color,
+          { doorId: d.id }
+        );
+        label(world, { name: d.name, x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, width: 0, depth: 0, rotation: 0 });
+      }
+      label(world, { ...b, depth: 0 });
+    }
+    for (const fixture of m.fixtures || []) {
+      const group = new THREE.Group();
+      group.position.set(fixture.x, 0, fixture.y);
+      group.rotation.y = (-fixture.rotation * Math.PI) / 180;
+      world.add(group);
       box(
-        world,
-        Math.max(0.1, Math.abs(q.x - p.x)),
-        0.1,
-        Math.max(0.1, Math.abs(q.y - p.y)),
-        (p.x + q.x) / 2,
-        0,
-        (p.y + q.y) / 2,
-        '#9aabb7',
-        { areaId: 'boundary' }
+        group,
+        fixture.width,
+        fixture.height,
+        fixture.depth,
+        fixture.width / 2,
+        fixture.height / 2,
+        fixture.depth / 2,
+        active === fixture.id ? '#dfc78e' : FIXTURE_TYPES[fixture.type].color,
+        { areaId: fixture.id }
       );
-    for (const d of b.doors || []) {
-      const [p, q] = edgePoints(b, d.side, d.offset, d.offset + d.width),
-        color = activeDoor === d.id ? '#b28b35' : DOOR_TYPES[d.type].color;
-      for (const v of [p, q]) box(world, 0.12, 2.4, 0.12, v.x, 1.2, v.y, color, { doorId: d.id });
-      box(
-        world,
-        Math.max(0.12, Math.abs(q.x - p.x)),
-        0.14,
-        Math.max(0.12, Math.abs(q.y - p.y)),
-        (p.x + q.x) / 2,
-        2.4,
-        (p.y + q.y) / 2,
-        color,
-        { doorId: d.id }
-      );
-      label(world, { name: d.name, x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, width: 0, depth: 0, rotation: 0 });
+      const caption = label(world, fixture);
+      caption.sprite.position.y = fixture.height + 0.4;
     }
     for (const a of m.areas) {
       const g = new THREE.Group();
       g.position.set(a.x, -0.015, a.y);
       g.rotation.y = (-a.rotation * Math.PI) / 180;
       world.add(g);
-      box(g, a.width, 0.025, a.depth, a.width / 2, 0, a.depth / 2, AREA_TYPES[a.type].color, { areaId: a.id });
+      box(g, a.width, 0.025, a.depth, a.width / 2, 0, a.depth / 2, a.color || AREA_TYPES[a.type].color, {
+        areaId: a.id,
+      });
       for (const [x, z, w, d] of [
         [a.width / 2, 0, a.width, 0.06],
         [a.width / 2, a.depth, a.width, 0.06],

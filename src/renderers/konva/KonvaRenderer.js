@@ -1,3 +1,4 @@
+import { fitView } from '../../core/geometry/fit-view.js';
 import { runtimeCount, runtimeColor } from '../../core/runtime/runtime.js';
 import Konva from 'konva';
 import { fgColor } from '../../core/model/model.js';
@@ -119,10 +120,10 @@ export function createKonvaRenderer(api) {
         g.add(
           new Konva.Text({
             x: (c - 1) * r.width * unit,
-            y: d / 2 - 6,
+            y: d * 0.55,
             width: r.width * unit,
             text: list.length ? String(count) : '—',
-            fontSize: 11,
+            fontSize: Math.min(11, d * 0.3),
             align: 'center',
             fill: colorMode === 'fg' || list.some(s => s.id === slotId) ? '#394e59' : count ? '#fff' : '#81949f',
             listening: false,
@@ -162,12 +163,19 @@ export function createKonvaRenderer(api) {
           }
         });
       }
+      // 名称约束在自身占地内，避免密排货架的外置标题互相覆盖；完整属性仍在侧栏展示。
       g.add(
         new Konva.Text({
-          x: 0,
-          y: -21,
-          text: `${r.name}  /  ${r.fgCode} · ${r.levels} 层`,
-          fontSize: 12,
+          name: 'rack-name',
+          x: 3,
+          y: 2,
+          width: Math.max(1, w - 6),
+          height: d * 0.4,
+          text: r.name,
+          fontSize: Math.min(11, d * 0.32),
+          wrap: 'none',
+          ellipsis: true,
+          listening: false,
           fill: r.id === selected ? '#137f71' : '#627e8e',
         })
       );
@@ -175,6 +183,7 @@ export function createKonvaRenderer(api) {
       layer.add(g);
     }
     // 门移至内容层顶部，避免被区域或货架遮挡而无法命中。
+    layer.find('.room-shell').forEach(node => node.moveToTop());
     layer.find('.boundary-door').forEach(node => node.moveToTop());
     cad.paintSelection();
     layer.batchDraw();
@@ -194,21 +203,20 @@ export function createKonvaRenderer(api) {
       ].map(([x, y]) => ({ x: r.x + x * Math.cos(a) - y * Math.sin(a), y: r.y + x * Math.sin(a) + y * Math.cos(a) }));
     });
     points.push(...spatial.points());
-    const minX = Math.min(0, ...points.map(p => p.x)),
-      minY = Math.min(0, ...points.map(p => p.y)),
-      maxX = Math.max(35, ...points.map(p => p.x)),
-      maxY = Math.max(20, ...points.map(p => p.y));
-    const scale = Math.max(
-      0.08,
-      Math.min(
-        1.5,
-        (wrap.clientWidth - 70) / ((maxX - minX) * unit),
-        (wrap.clientHeight - 230) / ((maxY - minY) * unit)
-      )
+    const minX = Math.min(...points.map(p => p.x)),
+      minY = Math.min(...points.map(p => p.y)),
+      maxX = Math.max(...points.map(p => p.x)),
+      maxY = Math.max(...points.map(p => p.y));
+    const fit = fitView(
+      { x: minX, y: minY, width: maxX - minX, depth: maxY - minY },
+      wrap.clientWidth,
+      wrap.clientHeight,
+      unit
     );
-    stage.scale({ x: scale, y: scale });
-    stage.position({ x: 35 - minX * unit * scale, y: 90 - minY * unit * scale });
-    api.fit3d({ minX, minY, maxX, maxY });
+    stage.scale({ x: fit.scale, y: fit.scale });
+    stage.position({ x: fit.x, y: fit.y });
+    // 三维继续沿用原有全局相机范围下限，二维居中不改变其既有复位习惯。
+    api.fit3d({ minX: Math.min(0, minX), minY: Math.min(0, minY), maxX: Math.max(35, maxX), maxY: Math.max(20, maxY) });
     renderLayout();
   }
   // 按世界外包矩形居中与缩放，保留边距，并同步三维聚焦。
