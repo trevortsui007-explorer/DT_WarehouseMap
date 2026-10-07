@@ -5,7 +5,7 @@ import { isFixture } from '../core/spatial/fixtures.js';
 import { spaces, isRoom } from '../core/spatial/rooms.js';
 import { resolvePhysicalArea, affectedPhysicalAreas } from './runtime/physical-area-runtime.js';
 import { validateAreaBindings } from '../core/spatial/area-bindings.js';
-import { uid } from '../core/model/model.js';
+import { uid, fgColor } from '../core/model/model.js';
 import { createRemoteLifecycle, LOCK_MESSAGE } from './layout/remote-lifecycle.js';
 import { createRuntimeStore } from './runtime/runtime-store.js';
 import { runtimeCount } from '../core/runtime/runtime.js';
@@ -279,8 +279,8 @@ export async function createMapApplication(ui, repository, services = {}) {
     const colors =
       colorMode === 'fg'
         ? [
-            ['#c9e4f5', 'FG01'],
-            ['#f7d9bc', 'FG02'],
+            [fgColor('FG01'), 'FG01'],
+            [fgColor('FG02'), 'FG02'],
           ]
         : [
             ['#22a694', '有货'],

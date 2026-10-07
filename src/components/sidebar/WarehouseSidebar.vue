@@ -27,6 +27,7 @@ const rackTypes = ['单层货架', '两层货架', '三层货架'];
         <option value="fg">FG 归属</option>
       </select></label
     >
+    <p class="muted">货架边框区分 FG；格子颜色由配色方式决定。未返回库存显示为未知。</p>
     <UnderlayPanel :state="state" :actions="actions" />
     <h3>物理区域</h3>
     <button id="boundary-edit" class="boundary-button" @click="actions.selectArea('boundary', $event)">

@@ -54,7 +54,7 @@ export function seed() {
     racks,
   };
 }
-export const fgColor = code => (code === 'FG01' ? '#c9e4f5' : code === 'FG02' ? '#f7d9bc' : '#f9e6a8');
+export const fgColor = code => (code === 'FG01' ? '#a8d5f0' : code === 'FG02' ? '#f5bf8e' : '#f9e6a8');
 // 返回剥离运行态后的 v6 布局副本；不支持的输入返回 null，完整合法性由 validateLayout 校验。
 export function migrate(saved) {
   if (!saved) return null;

@@ -87,9 +87,9 @@ export function createKonvaRenderer(api) {
         new Konva.Rect({
           width: w,
           height: d,
-          fill: 'white',
-          stroke: cad.has(r.id) ? '#167f73' : '#b9cbd6',
-          strokeWidth: cad.has(r.id) ? 3 : 1,
+          fill: r.fgCode === 'FG01' ? '#e7f3fc' : r.fgCode === 'FG02' ? '#fff0e2' : 'white',
+          stroke: cad.has(r.id) ? '#167f73' : r.fgCode === 'FG01' ? '#5795bd' : '#ce8c50',
+          strokeWidth: cad.has(r.id) ? 3 : 1.5,
           cornerRadius: 3,
           shadowColor: '#466372',
           shadowBlur: 8,
@@ -176,7 +176,7 @@ export function createKonvaRenderer(api) {
           wrap: 'none',
           ellipsis: true,
           listening: false,
-          fill: r.id === selected ? '#137f71' : '#627e8e',
+          fill: r.id === selected ? '#137f71' : r.fgCode === 'FG01' ? '#285f83' : '#895122',
         })
       );
       if (matches(r)) cad.bind(g, r);
