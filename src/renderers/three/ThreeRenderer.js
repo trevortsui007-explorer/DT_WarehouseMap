@@ -53,6 +53,9 @@ export function createThreeRenderer(api) {
       controls = new OrbitControls(camera, renderer.domElement);
       controls.target.set(16, 0, 11);
       controls.enableDamping = true;
+      // 沿鼠标指向缩放，复用原生控制器，不增加场景遍历；距离下限不代表模型碰撞保护。
+      controls.zoomToCursor = true;
+      controls.minDistance = 1;
       scene.add(new THREE.HemisphereLight(0xffffff, 0x748a98, 2.5));
       const light = new THREE.DirectionalLight(0xffffff, 3);
       light.position.set(12, 30, 18);
