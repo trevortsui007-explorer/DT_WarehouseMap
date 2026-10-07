@@ -1,5 +1,5 @@
 /**
- * Current persisted v4 contract. Names intentionally match existing JSON.
+ * Current persisted v6 contract. Names intentionally match existing JSON.
  * @typedef {Object} Slot
  * @property {string} id Stable identity, preserved on move/rotation/reload.
  * @property {string} code WMS location code; never replaced by internal IDs.
@@ -39,7 +39,7 @@
  * Physical Area. Existing flat x/y/width/depth/rotation geometry remains unchanged.
  * @property {string} id
  * @property {string} name
- * @property {'aisle'|'inbound'|'outbound'} type
+ * @property {'aisle'|'inbound'|'outbound'|'general'} type
  * @property {number} x
  * @property {number} y
  * @property {number} width
@@ -61,13 +61,15 @@
 
 /**
  * @typedef {Object} Layout
- * @property {4} schemaVersion
+ * @property {6} schemaVersion
  * @property {string} layoutId
  * @property {string} layoutCode
  * @property {string|null} warehouseCode Explicit WMS scope, never inferred from FG ownership.
  * @property {string|number|null} floorNo
  * @property {Rack[]} racks
  * @property {Boundary} boundary Normalized by ensureSpatial when loading older data.
+ * @property {Room[]} rooms 附加房间，内部对象不建立父子坐标关系。
+ * @property {Fixture[]} fixtures 固定设施不生成货位或库存。
  * @property {Area[]} areas
  * @property {AreaBinding[]} areaBindings
  */
@@ -89,4 +91,29 @@ export {};
  * @property {string} displayName
  * @property {string} purpose Business purpose, never HOLD/WAITING/URGENT state labels.
  * @property {boolean} isActive All active bindings are displayed, with no priority.
+ */
+
+/**
+ * @typedef {Object} Room
+ * @property {string} id
+ * @property {string} name
+ * @property {number} x
+ * @property {number} y
+ * @property {number} width
+ * @property {number} depth
+ * @property {0} rotation 房间保持轴对齐。
+ * @property {Door[]} doors 门偏移相对于本房间。
+ */
+
+/**
+ * @typedef {Object} Fixture
+ * @property {string} id 稳定身份，复制生成新 ID。
+ * @property {string} name
+ * @property {'cabinet'|'pillar'|'other'} type
+ * @property {number} x 世界坐标及尺寸以米保存。
+ * @property {number} y
+ * @property {number} width
+ * @property {number} depth
+ * @property {number} height
+ * @property {number} rotation 顺时针角度。
  */

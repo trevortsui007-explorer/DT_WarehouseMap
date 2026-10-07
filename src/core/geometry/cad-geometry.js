@@ -1,3 +1,6 @@
+import { isFixture, validateFixture } from '../spatial/fixtures.js';
+import { isRoom, spaces } from '../spatial/rooms.js';
+import { validateDoors } from '../doors/doors.js';
 import { corners, overlaps, validateArea } from '../spatial/spatial.js';
 import { uid, slots, validate } from '../model/model.js';
 // 计算旋转后对象集合的世界轴对齐外包矩形，长度单位为米；空集合返回零范围。
@@ -27,6 +30,7 @@ export function boxSelect(objects, rect, crossing) {
 // 先绕世界坐标 pivot 旋转，再平移 dx/dy；返回浅拷贝，不修改原对象或嵌套货位。
 export function transform(objects, dx, dy, degrees, pivot) {
   if (![dx, dy, degrees, pivot.x, pivot.y].every(Number.isFinite)) throw Error('请输入有效的移动距离、角度和基点');
+  if (degrees % 360 && objects.some(isRoom)) throw Error('房间保持轴对齐，请取消选择房间后旋转');
   const a = (degrees * Math.PI) / 180,
     c = Math.cos(a),
     s = Math.sin(a);
@@ -39,7 +43,13 @@ export function transform(objects, dx, dy, degrees, pivot) {
 }
 // 按是否具有列数区分货架与区域，复用领域校验；任一对象无效即抛错。
 export function validateObjects(objects, model) {
-  for (const o of objects) o.cols ? validate(o, model.racks) : validateArea(o);
+  for (const o of objects) {
+    if (isRoom(o)) {
+      validateArea(o, true);
+      validateDoors(o);
+    } else if (isFixture(o)) validateFixture(o);
+    else o.cols ? validate(o, model.racks) : validateArea(o);
+  }
 }
 // 组合移动以外包矩形吸附 0.5 米网格，再尝试边/中心及角点；Alt 对应 disabled，直接保留位移。
 export function snapMove(objects, others, dx, dy, tolerance, disabled = false) {
@@ -111,7 +121,8 @@ export function arrayOffsets(objects, rows, cols, gapX, gapY) {
 }
 // 深拷贝对象并创建新身份；复制货架时重建货位并避开编码冲突，不复制区域的外部绑定关系。
 export function copies(objects, offsets, model) {
-  const names = new Set([...model.racks, ...model.areas].map(o => o.name)),
+  if (objects.some(o => o.id === 'boundary')) throw Error('主边界不能复制，请取消选择主边界');
+  const names = new Set([...model.racks, ...model.areas, ...(model.fixtures || []), ...spaces(model)].map(o => o.name)),
     codes = new Set(model.racks.flatMap(r => r.slots.map(s => s.code)));
   const result = [];
   for (const offset of offsets)
@@ -122,6 +133,7 @@ export function copies(objects, offsets, model) {
         name = `${o.name}-副本${n++}`;
       } while (names.has(name));
       const copy = { ...structuredClone(o), id: uid(), name, x: o.x + offset.dx, y: o.y + offset.dy };
+      if (isRoom(copy)) copy.doors = copy.doors.map(door => ({ ...door, id: uid() }));
       if (copy.cols) {
         copy.slots = slots(copy);
         while (copy.slots.some(s => codes.has(s.code))) {

@@ -1,3 +1,4 @@
+import { validateFixture } from '../spatial/fixtures.js';
 import { validateAreaBindings } from '../spatial/area-bindings.js';
 import { migrate, validate } from './model.js';
 import { ensureSpatial, validateArea } from '../spatial/spatial.js';
@@ -7,8 +8,8 @@ const fail = message => {
 };
 // 导入和持久化的统一校验入口：先克隆迁移，再检查对象身份、业务编码和空间字段，不修改输入。
 export function validateLayout(input) {
-  if (!input || typeof input !== 'object' || ![1, 2, 3, 4].includes(input.schemaVersion))
-    fail('不支持的布局版本；仅支持本编辑器导出的 v1 / v2 / v3 / v4 布局');
+  if (!input || typeof input !== 'object' || ![1, 2, 3, 4, 5, 6].includes(input.schemaVersion))
+    fail('不支持的布局版本；仅支持本编辑器导出的 v1 / v2 / v3 / v4 / v5 / v6 布局');
   if (!Array.isArray(input.racks) || input.racks.length > 2000) fail('货架列表无效或超过 2000 个');
   JSON.stringify(input, (key, value) => {
     if (['__proto__', 'constructor', 'prototype'].includes(key)) fail('布局包含不支持的字段');
@@ -77,6 +78,24 @@ export function validateLayout(input) {
   for (const d of m.boundary.doors || []) {
     id(d.id);
     text(d.name, '门名称');
+  }
+  if (!Array.isArray(m.rooms) || m.rooms.length > 2000) fail('房间列表无效或超过 2000 个');
+  for (const room of m.rooms) {
+    id(room.id);
+    text(room.name, '房间名称');
+    validateArea(room, true);
+    if (!Array.isArray(room.doors)) fail('房间门列表无效');
+    validateDoors(room);
+    for (const door of room.doors) {
+      id(door.id);
+      text(door.name, '门名称');
+    }
+  }
+  if (!Array.isArray(m.fixtures) || m.fixtures.length > 2000) fail('设施列表无效或超过 2000 个');
+  for (const fixture of m.fixtures) {
+    id(fixture.id);
+    text(fixture.name, '设施名称');
+    validateFixture(fixture);
   }
   validateAreaBindings(m);
   for (const binding of m.areaBindings) id(binding.id);

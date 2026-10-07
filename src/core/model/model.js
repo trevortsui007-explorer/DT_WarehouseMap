@@ -43,8 +43,10 @@ export function seed() {
     racks.push(r);
   }
   return {
-    schemaVersion: 4,
+    schemaVersion: 6,
     areaBindings: [],
+    rooms: [],
+    fixtures: [],
     layoutId: 'main',
     layoutCode: 'MAIN',
     warehouseCode: null,
@@ -53,12 +55,17 @@ export function seed() {
   };
 }
 export const fgColor = code => (code === 'FG01' ? '#c9e4f5' : code === 'FG02' ? '#f7d9bc' : '#f9e6a8');
-// 返回剥离运行态后的 v4 布局副本；不支持的输入返回 null，完整合法性由 validateLayout 校验。
+// 返回剥离运行态后的 v6 布局副本；不支持的输入返回 null，完整合法性由 validateLayout 校验。
 export function migrate(saved) {
   if (!saved) return null;
-  if (![1, 2, 3, 4].includes(saved.schemaVersion) || !Array.isArray(saved.racks)) return null;
+  if (![1, 2, 3, 4, 5, 6].includes(saved.schemaVersion) || !Array.isArray(saved.racks)) return null;
   const result = withoutRuntime(saved);
-  result.schemaVersion = 4;
+  delete result.underlay;
+  delete result.surveys;
+  delete result.resources;
+  result.schemaVersion = 6;
+  if (saved.schemaVersion < 6) result.fixtures ??= [];
+  if (saved.schemaVersion < 5) result.rooms ??= [];
   // ??= 仅在字段为 null 或 undefined 时补默认值；已有绑定不会因迁移被覆盖。
   if (saved.schemaVersion < 4) result.areaBindings ??= [];
   result.layoutId ??= 'main';
@@ -80,13 +87,13 @@ export function validate(r, racks) {
     if (!Number.isFinite(r[key])) throw Error('请输入有效数值');
   if (
     r.cols < 1 ||
-    r.cols > 20 ||
+    r.cols > 30 ||
     !Number.isInteger(r.cols) ||
     r.levels < 1 ||
     r.levels > 3 ||
     !Number.isInteger(r.levels)
   )
-    throw Error('列数为 1–20，层数为 1–3');
+    throw Error('列数为 1–30，层数为 1–3');
   if (r.width < 0.3 || r.width > 5 || r.depth < 0.3 || r.depth > 5 || r.levelHeight < 0.3 || r.levelHeight > 5)
     throw Error('尺寸需在 0.3–5 米之间');
   if (Math.abs(r.x) > 200 || Math.abs(r.y) > 200) throw Error('坐标需在 -200 至 200 米之间');

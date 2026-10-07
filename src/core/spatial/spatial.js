@@ -1,7 +1,10 @@
+import { spaces, coveredByRooms } from './rooms.js';
+export const AREA_COLORS = ['#fff0bf', '#d9edf9', '#fbe0c6', '#e4efdf', '#eee3f4'];
 export const AREA_TYPES = {
+  general: { label: '通用区域', color: '#e4efdf', stroke: '#91a68a' },
   aisle: { label: '通道', color: '#fff0bf', stroke: '#c7a34b' },
   inbound: { label: '入库暂存区', color: '#d9edf9', stroke: '#77a8c3' },
-  outbound: { label: '出库拣货暂存区', color: '#fbe0c6', stroke: '#c69a72' },
+  outbound: { label: '出库暂存区', color: '#fbe0c6', stroke: '#c69a72' },
 };
 // 以对象局部原点旋转四角，再平移到世界坐标；货架总宽度为列数乘单列宽度。
 export function corners(r) {
@@ -36,6 +39,7 @@ export function validateArea(a, boundary = false) {
   for (const k of ['x', 'y', 'width', 'depth', 'rotation']) if (!Number.isFinite(a[k])) throw Error('请输入有效数值');
   if (a.width < 0.5 || a.depth < 0.5 || a.width > 400 || a.depth > 400) throw Error('长宽需在 0.5–400 米之间');
   if (Math.abs(a.x) > 200 || Math.abs(a.y) > 200) throw Error('坐标需在 -200 至 200 米之间');
+  if (a.color !== undefined && !AREA_COLORS.includes(a.color)) throw Error('请选择预设淡色');
   if (boundary && a.rotation !== 0) throw Error('矩形仓库边界暂不支持旋转');
 }
 // 为缺少空间结构的旧布局原地补充边界和空区域列表；已有完整空间结构直接复用。
@@ -76,7 +80,7 @@ export function defaultAreas(model) {
     { id: crypto.randomUUID(), name: '入库暂存区', type: 'inbound', x: b.x + 2, y, width: 10, depth: 5, rotation: 0 },
     {
       id: crypto.randomUUID(),
-      name: '出库拣货暂存区',
+      name: '出库暂存区',
       type: 'outbound',
       x: b.x + 15,
       y,
@@ -88,17 +92,16 @@ export function defaultAreas(model) {
 }
 // 生成越界和货架占用区域的提示列表；这些警告不在此处阻止编辑或修改几何。
 export function spatialWarnings(model) {
-  const b = model.boundary,
-    result = [];
-  for (const o of [...model.racks, ...model.areas]) {
-    if (
-      corners(o).some(
-        p => p.x < b.x - 1e-8 || p.y < b.y - 1e-8 || p.x > b.x + b.width + 1e-8 || p.y > b.y + b.depth + 1e-8
-      )
-    )
+  const result = [];
+  for (const o of [...model.racks, ...model.areas, ...(model.fixtures || [])]) {
+    if (o.type !== 'aisle' && !coveredByRooms(corners(o), spaces(model)))
       result.push({ id: o.id, text: `${o.name} 超出仓库边界` });
   }
   for (const r of model.racks)
-    for (const a of model.areas) if (overlaps(r, a)) result.push({ id: r.id, text: `${r.name} 占用${a.name}` });
+    for (const a of model.areas)
+      if (a.type !== 'general' && overlaps(r, a)) result.push({ id: r.id, text: `${r.name} 占用${a.name}` });
+  for (const fixture of model.fixtures || [])
+    for (const object of [...model.racks, ...model.areas.filter(area => area.type !== 'general')])
+      if (overlaps(fixture, object)) result.push({ id: object.id, text: `${object.name} 与设施 ${fixture.name} 重叠` });
   return result;
 }

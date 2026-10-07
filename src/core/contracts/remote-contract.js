@@ -2,7 +2,7 @@
  * @typedef {Object} DraftSaveRequest
  * @property {number} expectedDraftRevision Optimistic concurrency token; not a published version.
  * @property {number|null} basedOnPublishedVersion
- * @property {4} schemaVersion
+ * @property {6} schemaVersion
  * @property {import('./layout-contract.js').Layout} layout Runtime-free layout snapshot.
  */
 /**
