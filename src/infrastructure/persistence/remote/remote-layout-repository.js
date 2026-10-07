@@ -12,7 +12,7 @@ export function createRemoteLayoutRepository(request) {
     saveServerDraft: (code, dto) =>
       request(path(code) + '/draft', {
         method: 'PUT',
-        body: { ...dto, schemaVersion: 4, layout: validateLayout(dto.layout) },
+        body: { ...dto, schemaVersion: 6, layout: validateLayout(dto.layout) },
       }),
     publishLayout: (code, dto) => request(path(code) + '/publish', { method: 'POST', body: dto }),
     listVersions: code => request(path(code) + '/versions'),
