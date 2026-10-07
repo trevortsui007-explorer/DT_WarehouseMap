@@ -6,11 +6,36 @@ import Konva from 'konva';
 import App from '../src/App.vue';
 import { STORE_KEY } from '../src/infrastructure/persistence/layout-store.js';
 
+const workspaceFixture = vi.hoisted(() => ({ enabled: false, databases: [] }));
+
 // Editor integration runs against the async repository contract; Dexie is tested separately with fake IndexedDB.
 vi.mock('../src/infrastructure/persistence/browser-layout-repository.js', async () => {
+  const { indexedDB, IDBKeyRange } = await import('fake-indexeddb');
+  const { createWorkspaceDatabase } = await import('../src/infrastructure/persistence/indexeddb/db.js');
+  const { createIndexedDbWorkspaceRepository } =
+    await import('../src/infrastructure/persistence/indexeddb/workspace-repository.js');
+  const { createWorkspaceCatalog } = await import('../src/infrastructure/persistence/indexeddb/workspace-catalog.js');
   const { createLegacyWorkspaceRepository } =
     await import('../src/infrastructure/persistence/legacy/legacy-workspace-repository.js');
-  return { createBrowserLayoutRepository: () => createLegacyWorkspaceRepository(localStorage) };
+  return {
+    createBrowserLayoutRepository: () => {
+      if (workspaceFixture.enabled) {
+        const db = createWorkspaceDatabase('ui-project-' + crypto.randomUUID(), { indexedDB, IDBKeyRange });
+        workspaceFixture.databases.push(db);
+        const root = createIndexedDbWorkspaceRepository(db);
+        root.catalog = createWorkspaceCatalog(db, root);
+        return root;
+      }
+      let resources = { underlay: null, surveys: [] };
+      return {
+        ...createLegacyWorkspaceRepository(localStorage),
+        loadResources: async () => structuredClone(resources),
+        saveResources: async (_id, next) => {
+          resources = structuredClone(next);
+        },
+      };
+    },
+  };
 });
 
 const graphics = vi.hoisted(() => ({ renderers: [] }));
@@ -58,6 +83,7 @@ vi.mock('three', async importOriginal => {
 
 let wrapper;
 beforeEach(() => {
+  workspaceFixture.enabled = false;
   runtimeFixture.snapshot = null;
   runtimeFixture.handlers = null;
   vi.useFakeTimers();
@@ -95,6 +121,7 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  await Promise.all(workspaceFixture.databases.splice(0).map(db => db.delete()));
 });
 async function start() {
   wrapper = mount(App, { attachTo: document.body });
@@ -115,6 +142,40 @@ const key = async (value, options = {}) => {
   await flushPromises();
 };
 const saved = () => JSON.parse(localStorage.getItem(STORE_KEY)).current;
+
+test('room UI creates owned doors, moves shell without racks and renders in both views', async () => {
+  await start();
+  await edit();
+  const add = wrapper.findAll('button').find(button => button.text() === '＋ 房间');
+  await add.trigger('click');
+  await wrapper.get('#door-add').trigger('click');
+  await vi.advanceTimersByTimeAsync(1300);
+  const before = saved();
+  expect(before.rooms).toHaveLength(1);
+  expect(before.rooms[0].doors).toHaveLength(1);
+  const id = before.rooms[0].id;
+  const node = Konva.stages[0].findOne(item => item.getAttr('objectId') === id);
+  node.fire('dragstart', { evt: {} });
+  node.position({ x: node.x() + 44, y: node.y() + 22 });
+  node.fire('dragmove', { evt: { altKey: true } });
+  node.fire('dragend', { evt: {} });
+  await nextTick();
+  await vi.advanceTimersByTimeAsync(1300);
+  expect(saved().rooms[0].x).toBe(before.rooms[0].x + 2);
+  expect(saved().racks).toEqual(before.racks);
+  expect(saved().rooms[0].doors).toEqual(before.rooms[0].doors);
+  await wrapper.get('#undo').trigger('click');
+  await vi.advanceTimersByTimeAsync(1300);
+  expect(saved().rooms).toEqual(before.rooms);
+  await wrapper.get('[data-view="3d"]').trigger('click');
+  await nextTick();
+  graphics.renderers[0].loop();
+  let owned = false;
+  graphics.renderers[0].scene.traverse(object => {
+    if (object.userData.roomId === id) owned = true;
+  });
+  expect(owned).toBe(true);
+});
 
 test('physical areas show all active bindings in 2D and equal 3D sections; virtual delta targets only its area', async () => {
   const { seed } = await import('../src/core/model/model.js');
@@ -528,4 +589,182 @@ test('startup load failure blocks editing without overwriting old data and offer
   await flushPromises();
   expect(wrapper.findAll('[data-rack]')).toHaveLength(18);
   expect(wrapper.find('.workspace-loading').exists()).toBe(false);
+});
+
+test('fixture and general-area UI retains CAD history, colors and measured dimensions in both renderers', async () => {
+  await start();
+  await edit();
+  await wrapper
+    .findAll('button')
+    .find(button => button.text() === '＋ 固定设施')
+    .trigger('click');
+  await wrapper.get('#area-form input[name="height"]').setValue('3');
+  await wrapper.get('#area-form').trigger('submit');
+  await vi.advanceTimersByTimeAsync(1300);
+  const id = saved().fixtures[0].id;
+  expect(saved().fixtures[0].height).toBe(3);
+  const section = wrapper.findAll('.workspace-panel').find(item => item.text().includes('现场实测'));
+  await section.get('input[type="date"]').setValue('2026-10-07');
+  await section.get('select').setValue('mm');
+  const fields = section.findAll('input[type="number"]');
+  await fields[0].setValue('1200');
+  await fields[1].setValue('800');
+  await fields[2].setValue('2400');
+  await section.get('form').trigger('submit');
+  await flushPromises();
+  expect(section.text()).toContain('已记录待应用');
+  expect(saved().fixtures[0].height).toBe(3);
+  await section
+    .findAll('button')
+    .find(button => button.text() === '应用已保存实测值')
+    .trigger('click');
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(1300);
+  expect(saved().fixtures[0].height).toBe(2.4);
+  expect(section.text()).toContain('已应用');
+  await wrapper.get('#undo').trigger('click');
+  await vi.advanceTimersByTimeAsync(1300);
+  expect(saved().fixtures[0].height).toBe(3);
+  expect(section.text()).toContain('待复核');
+  await wrapper
+    .findAll('button')
+    .find(button => button.text() === '＋ 通用区域')
+    .trigger('click');
+  await wrapper.get('#area-form select[name="color"]').setValue('#d9edf9');
+  await wrapper.get('#area-form').trigger('submit');
+  await vi.advanceTimersByTimeAsync(1300);
+  const area = saved().areas.at(-1);
+  const node = Konva.stages[0].findOne(item => item.getAttr('objectId') === area.id);
+  expect(node.findOne('Rect').fill()).toBe('#d9edf9');
+  expect(saved().areaBindings).toEqual([]);
+  await wrapper.get('[data-view="3d"]').trigger('click');
+  await nextTick();
+  graphics.renderers[0].loop();
+  let mesh;
+  graphics.renderers[0].scene.traverse(object => {
+    if (object.isMesh && object.userData.areaId === id) mesh = object;
+  });
+  expect(mesh.geometry.parameters.height).toBe(3);
+  expect(saved().resources).toBeUndefined();
+  expect(saved().surveys).toBeUndefined();
+});
+
+test('underlay renderer is non-interactive when locked, captures world coordinates and hides outside 2D edit', async () => {
+  const { createUnderlayRenderer } = await import('../src/renderers/konva/underlay.js');
+  const container = document.createElement('div');
+  document.body.append(container);
+  const stage = new Konva.Stage({ container, width: 800, height: 600 });
+  stage.add(new Konva.Layer(), new Konva.Layer());
+  stage.position({ x: 50, y: 20 });
+  stage.scale({ x: 2, y: 2 });
+  const state = {
+    visible: true,
+    interaction: null,
+    points: [],
+    underlay: {
+      dataUrl: 'image',
+      pixelWidth: 100,
+      pixelHeight: 50,
+      scale: 0.1,
+      x: 1,
+      y: 2,
+      rotation: 30,
+      opacity: 0.5,
+      visible: true,
+      locked: true,
+    },
+  };
+  const click = vi.fn(),
+    move = vi.fn();
+  const renderer = createUnderlayRenderer(stage, 22, {
+    state: () => state,
+    decodeImage: async () => document.createElement('canvas'),
+    click,
+    move,
+    error: error => {
+      throw error;
+    },
+  });
+  try {
+    await renderer.render();
+    let node = stage.findOne('Image');
+    expect(node.getLayer().listening()).toBe(false);
+    expect(node.draggable()).toBe(false);
+    expect(node.getLayer().zIndex()).toBe(1);
+    state.interaction = 'calibrate';
+    await renderer.render();
+    stage.setPointersPositions({ clientX: 490, clientY: 240 });
+    node = stage.findOne('Image');
+    node.fire('click', { evt: {} });
+    expect(click).toHaveBeenCalledWith({ x: 10, y: 5 });
+    state.underlay.locked = false;
+    state.interaction = 'move';
+    await renderer.render();
+    node = stage.findOne('Image');
+    node.position({ x: 66, y: 88 });
+    node.fire('dragend', {});
+    expect(move).toHaveBeenCalledWith({ x: 3, y: 4 });
+    state.visible = false;
+    await renderer.render();
+    expect(stage.findOne('Image')).toBeUndefined();
+  } finally {
+    renderer.destroy();
+    stage.destroy();
+    container.remove();
+  }
+});
+
+test('project manager creates, copies and switches independent maps with real repository scopes', async () => {
+  vi.useRealTimers();
+  workspaceFixture.enabled = true;
+  await start();
+  // IndexedDB 完成多个事务后才建立目录；等待真实应用就绪，不跳过启动流程。
+  await vi.waitFor(
+    () => {
+      expect(wrapper.find('#workspace-title').exists()).toBe(true);
+      expect(wrapper.get('#work-mode').attributes('disabled')).toBeUndefined();
+    },
+    { timeout: 5000 }
+  );
+  await wrapper.get('#layout-open').trigger('click');
+  await vi.waitFor(() => expect(wrapper.find('.project-manager').exists()).toBe(true));
+  const form = wrapper.get('.new-map-card form'),
+    inputs = form.findAll('input');
+  await inputs[0].setValue('二楼仓库');
+  await form.trigger('submit');
+  await vi.waitFor(() => expect(wrapper.get('#workspace-title').text()).toContain('二楼仓库'), { timeout: 5000 });
+  await vi.waitFor(() => expect(wrapper.find('.workspace-loading').exists()).toBe(false));
+  expect(wrapper.get('#workspace-title').text()).toContain('二楼仓库 / 现状方案');
+  expect(wrapper.findAll('[data-rack]')).toHaveLength(0);
+  expect(wrapper.get('#runtime-status').text()).toContain('未关联运行态');
+  expect(wrapper.get('#save').text()).toBe('保存本地方案');
+  await edit();
+  await wrapper
+    .findAll('button')
+    .find(button => button.text() === '＋ 房间')
+    .trigger('click');
+  await wrapper.get('#layout-open').trigger('click');
+  await flushPromises();
+  const scheme = wrapper.get('input[aria-label="新方案名称"]');
+  await scheme.setValue('方案 A');
+  await scheme.element.closest('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await vi.waitFor(() => expect(wrapper.get('#workspace-title').text()).toContain('方案 A'), { timeout: 5000 });
+  await vi.waitFor(() => expect(wrapper.find('.workspace-loading').exists()).toBe(false));
+  expect(wrapper.get('#workspace-title').text()).toContain('方案 A');
+  expect(wrapper.get('#work-mode').element.value).toBe('view');
+  expect(wrapper.get('#undo').attributes('disabled')).toBeDefined();
+  expect(wrapper.findAll('#room-list button')).toHaveLength(1);
+  await edit();
+  await wrapper
+    .findAll('button')
+    .find(button => button.text() === '＋ 房间')
+    .trigger('click');
+  await wrapper.get('#layout-open').trigger('click');
+  await flushPromises();
+  const original = wrapper.findAll('[data-workspace]').find(row => row.text().includes('现状方案'));
+  await original.get('button').trigger('click');
+  await vi.waitFor(() => expect(wrapper.get('#workspace-title').text()).toContain('现状方案'), { timeout: 5000 });
+  await vi.waitFor(() => expect(wrapper.find('.workspace-loading').exists()).toBe(false));
+  expect(wrapper.get('#workspace-title').text()).toContain('现状方案');
+  expect(wrapper.findAll('#room-list button')).toHaveLength(1);
 });

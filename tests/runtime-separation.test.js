@@ -13,7 +13,7 @@ test('legacy cartons are removed without changing identity; all runtime fields a
   old.racks[0].slots[0].cartons = 12;
   old.racks[0].slots[0].huCount = 4;
   const next = validateLayout(old);
-  expect(next.schemaVersion).toBe(4);
+  expect(next.schemaVersion).toBe(6);
   expect(next.racks[0].slots[0].id).toBe(old.racks[0].slots[0].id);
   expect(next.racks[0].slots[0].code).toBe(old.racks[0].slots[0].code);
   expect(JSON.stringify(next)).not.toMatch(/cartons|huCount/);
@@ -32,7 +32,7 @@ test('v1 database upgrade removes runtime from drafts and every snapshot atomica
   old.close();
   const database = createWorkspaceDatabase(name);
   try {
-    expect((await database.drafts.get('main')).data.schemaVersion).toBe(4);
+    expect((await database.drafts.get('main')).data.schemaVersion).toBe(6);
     expect(JSON.stringify(await database.snapshots.get('old'))).not.toContain('cartons');
   } finally {
     await database.delete();

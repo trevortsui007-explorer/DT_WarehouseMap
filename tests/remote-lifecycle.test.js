@@ -5,6 +5,31 @@ import { createRemoteLifecycle } from '../src/application/layout/remote-lifecycl
 import { createHttpClient } from '../src/infrastructure/api/http-client.js';
 import { createRemoteLayoutRepository } from '../src/infrastructure/persistence/remote/remote-layout-repository.js';
 
+test('only explicitly local workspaces unlock codes without server identity verification', async () => {
+  const model = validateLayout(seed());
+  const slot = model.racks[0].slots[0];
+  for (const localOnly of [true, false, undefined]) {
+    const service = createRemoteLifecycle({ model: () => model, localOnly, changed: vi.fn() });
+    await service.initialize();
+    expect(service.canRename(slot)).toBe(localOnly === true);
+    expect(service.canRename(null)).toBe(false);
+    expect(service.state.identityVerified).toBe(false);
+    expect(service.state.capabilities.canPublishLayout).toBe(false);
+  }
+});
+
+test('a configured remote cannot bypass verification through the local flag', async () => {
+  const model = validateLayout(seed());
+  const service = createRemoteLifecycle({
+    model: () => model,
+    localOnly: true,
+    remote: { getPublishedLayout: vi.fn().mockRejectedValue(Error('offline')) },
+    changed: vi.fn(),
+  });
+  await service.initialize();
+  expect(service.canRename(model.racks[0].slots[0])).toBe(false);
+});
+
 async function setup() {
   let model = validateLayout(seed());
   const published = structuredClone(model);
@@ -155,6 +180,6 @@ test('HTTP repository sends distinct DTO versions, strips runtime and preserves 
   expect(JSON.parse(options.body)).toMatchObject({
     expectedDraftRevision: 8,
     basedOnPublishedVersion: 21,
-    schemaVersion: 4,
+    schemaVersion: 6,
   });
 });

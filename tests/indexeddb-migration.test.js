@@ -34,6 +34,31 @@ function storage() {
 const layout = () => ensureSpatial(seed());
 const counts = async db => [await db.drafts.count(), await db.history.count(), await db.snapshots.count()];
 
+test('legacy read-back tolerates schema field order changes but rejects real content changes', async () => {
+  const db = database(),
+    legacy = storage();
+  const old = layout();
+  old.schemaVersion = 3;
+  delete old.rooms;
+  delete old.areaBindings;
+  legacy.setItem(LEGACY_KEYS[1], JSON.stringify(old));
+  await migrateLegacyStorage(db, legacy);
+  const id = `legacy:${LEGACY_KEYS[1]}:current`;
+  const snapshot = await db.snapshots.get(id);
+  // 模拟此前 v3→v4 已添加绑定、此次 v4→v5 再添加房间的不同字段顺序。
+  const data = { ...snapshot.data };
+  delete data.rooms;
+  data.rooms = [];
+  await db.snapshots.update(id, { data });
+  await expect(migrateLegacyStorage(db, legacy)).resolves.toEqual({ migrated: true });
+  expect(await db.snapshots.count()).toBe(1);
+  data.racks[0].x += 1;
+  await db.snapshots.update(id, { data });
+  legacy.setItem(LEGACY_KEYS[1], JSON.stringify(old));
+  await expect(migrateLegacyStorage(db, legacy)).rejects.toThrow('迁移读回校验失败');
+  expect(legacy.getItem(LEGACY_KEYS[1])).toBe(JSON.stringify(old));
+});
+
 test('Dexie repository saves/loads unchanged contract, metadata, history and atomic before-replacement snapshots', async () => {
   const db = database(),
     repository = createIndexedDbWorkspaceRepository(db),
@@ -49,7 +74,7 @@ test('Dexie repository saves/loads unchanged contract, metadata, history and ato
   expect(draft).toMatchObject({
     layoutId: 'main',
     layoutCode: 'MAIN',
-    schemaVersion: 4,
+    schemaVersion: 6,
     baseVersion: null,
     dirty: true,
   });
@@ -130,7 +155,7 @@ test('schema v1 migration preserves identities/codes and uses the existing FG co
   legacy.setItem(LEGACY_KEYS[3], JSON.stringify(initial));
   await migrateLegacyStorage(db, legacy);
   const model = (await createIndexedDbWorkspaceRepository(db).load()).model;
-  expect(model.schemaVersion).toBe(4);
+  expect(model.schemaVersion).toBe(6);
   expect(model.racks[1].fgCode).toBe('FG02');
   expect(model.racks[0].slots).toEqual(slots);
 });

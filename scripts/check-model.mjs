@@ -17,7 +17,7 @@ assert.throws(() => validate({ ...r, name: model.racks[1].name }, model.racks));
 console.log('PASS: stable slot identity, unique codes, empty copies, layout validation');
 const legacy = { schemaVersion: 1, racks: [{ ...r, zone: 'B' }] };
 const upgraded = migrate(legacy);
-assert.equal(upgraded.schemaVersion, 4);
+assert.equal(upgraded.schemaVersion, 6);
 assert.equal(upgraded.racks[0].fgCode, 'FG02');
 assert.equal(upgraded.racks[0].spaceId, 'main');
 assert.equal(upgraded.racks[0].x, r.x);

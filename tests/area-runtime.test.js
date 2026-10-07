@@ -49,7 +49,7 @@ test('schema 3 to 4 adds empty bindings and preserves physical geometry and iden
   old.schemaVersion = 3;
   delete old.areaBindings;
   const next = migrate(old);
-  expect(next.schemaVersion).toBe(4);
+  expect(next.schemaVersion).toBe(6);
   expect(next.areaBindings).toEqual([]);
   expect(next.areas).toEqual(old.areas);
   expect(old).not.toHaveProperty('areaBindings');
@@ -150,8 +150,8 @@ test('existing database JSON migrates without changing IndexedDB version and bin
   const repo = createIndexedDbWorkspaceRepository(db);
   try {
     expect((await repo.load()).model.areaBindings).toEqual([]);
-    expect(db.verno).toBe(2);
-    expect((await db.snapshots.get('old')).data.schemaVersion).toBe(4);
+    expect(db.verno).toBe(4);
+    expect((await db.snapshots.get('old')).data.schemaVersion).toBe(6);
     const layout = fixture();
     await repo.save(layout);
     expect((await repo.load()).model.areaBindings).toEqual(layout.areaBindings);
@@ -176,9 +176,9 @@ test('content migration is atomic and retryable when an old binding is invalid',
   try {
     await expect(repo.load()).rejects.toThrow('Physical Area');
     expect((await db.drafts.get('main')).data).toEqual(old);
-    expect(db.verno).toBe(2);
+    expect(db.verno).toBe(4);
     await db.snapshots.put({ id: 'bad', data: old });
-    expect((await repo.load()).model.schemaVersion).toBe(4);
+    expect((await repo.load()).model.schemaVersion).toBe(6);
   } finally {
     await db.delete();
   }
