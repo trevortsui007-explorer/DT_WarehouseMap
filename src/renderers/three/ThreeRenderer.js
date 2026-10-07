@@ -8,6 +8,21 @@ import { drawSpatial3d } from './spatial.js';
 export function createThreeRenderer(api) {
   const runtimeNodes = new Map();
   const areaNodes = new Map();
+  const rackNodes = new Map();
+  // 选择只切换装饰层，不销毁货架网格，也不改变相机观察目标。
+  function updateSelection() {
+    const { cad, zone } = api.state();
+    for (const [id, entry] of rackNodes) {
+      const active = cad.has(id) && (zone === 'ALL' || entry.rack.fgCode === zone);
+      if (active && !entry.highlight) {
+        entry.highlight = new THREE.Group();
+        addRackHighlight(entry.highlight, entry.rack);
+        entry.group.add(entry.highlight);
+      }
+      if (entry.highlight) entry.highlight.visible = active;
+    }
+    updateRuntime();
+  }
   // 刷新指定物理区域的摘要纹理，不重建整个场景。
   function updateArea(id) {
     areaNodes.get(id)?.();
@@ -92,12 +107,13 @@ export function createThreeRenderer(api) {
   }
   // 布局或视图结构改变才重建 world；移除旧网格前释放几何、材质和纹理以免 GPU 内存累积。
   function renderLayout() {
-    const { model, level, colorMode, slotId, cad, spatial } = api.state();
+    const { model, level, colorMode, slotId, spatial } = api.state();
     const visible = () => model.racks.filter(r => r.spaceId === 'main');
     const matches = r => api.state().zone === 'ALL' || r.fgCode === api.state().zone;
     if (!world) return;
     runtimeNodes.clear();
     areaNodes.clear();
+    rackNodes.clear();
     while (world.children.length) {
       const obj = world.children[0];
       obj.traverse(o => {
@@ -171,7 +187,7 @@ export function createThreeRenderer(api) {
           const refresh = () => {
             const count = runtimeCount(api.state().runtime, s.code);
             base.material.color.set(
-              s.id === slotId
+              s.id === api.state().slotId
                 ? '#f9e6a8'
                 : colorMode === 'fg'
                   ? fgColor(r.fgCode)
@@ -185,7 +201,7 @@ export function createThreeRenderer(api) {
           refresh();
         }
       }
-      if (cad.has(r.id) && matches(r)) addRackHighlight(g, r);
+      rackNodes.set(r.id, { group: g, rack: r, highlight: null });
       if (!matches(r))
         g.traverse(o => {
           if (o.material) {
@@ -195,6 +211,7 @@ export function createThreeRenderer(api) {
           }
         });
     }
+    updateSelection();
   }
   // 同步 WebGL 画布尺寸与相机纵横比，更新投影矩阵。
   function resize() {
@@ -237,5 +254,16 @@ export function createThreeRenderer(api) {
     renderer?.domElement.remove();
     renderer = null;
   }
-  return { mount, renderLayout, updateRuntime, updateLocation, updateArea, focusObject, fitToView, resize, destroy };
+  return {
+    mount,
+    updateSelection,
+    renderLayout,
+    updateRuntime,
+    updateLocation,
+    updateArea,
+    focusObject,
+    fitToView,
+    resize,
+    destroy,
+  };
 }

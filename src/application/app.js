@@ -193,8 +193,9 @@ export async function createMapApplication(ui, repository, services = {}) {
         return;
       }
       cad.set([data.rackId], false);
-      slotId = data.slotId || null;
-      render();
+      slotId = null;
+      publish();
+      three.updateSelection();
     },
   });
   const konva = createKonvaRenderer({
