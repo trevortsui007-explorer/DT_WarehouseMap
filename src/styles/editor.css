@@ -348,7 +348,7 @@ footer {
   color: #b45353;
 }
 .elevation-row {
-  display: flex;
+  display: grid;
   gap: 4px;
   margin-bottom: 5px;
   align-items: center;
@@ -547,14 +547,13 @@ header {
   font-size: 12px;
   padding: 9px 5px;
 }
-.area-tools button:first-child {
+.area-tools button[data-area-add='aisle'] {
   background: #fff0bf;
 }
-.area-tools button:nth-child(2) {
+.area-tools button[data-area-add='inbound'] {
   background: #d9edf9;
 }
-.area-tools button:last-child {
-  grid-column: 1/-1;
+.area-tools button[data-area-add='outbound'] {
   background: #fbe0c6;
 }
 .boundary-button {
@@ -786,4 +785,423 @@ header .actions {
 }
 #runtime-status {
   background: #eaf4fa;
+}
+
+.workspace-panel {
+  margin-top: 16px;
+  padding: 12px 0;
+  border-top: 1px solid #dce5eb;
+}
+.workspace-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.workspace-panel input[type='file'] {
+  max-width: 100%;
+  font-size: 12px;
+}
+.workspace-panel button {
+  margin: 4px 0;
+}
+.workspace-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.workspace-form label {
+  min-width: 0;
+}
+.workspace-form .check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.workspace-form input[type='checkbox'] {
+  width: auto;
+}
+.workspace-error {
+  color: #a54132;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.survey-table {
+  width: 100%;
+  font-size: 12px;
+  text-align: left;
+  table-layout: fixed;
+}
+.survey-table input {
+  width: 100%;
+  min-width: 0;
+}
+.workspace-panel textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+}
+
+.project-manager {
+  margin: 16px 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #dce5eb;
+}
+.project-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+.project-inline input {
+  flex: 1;
+  min-width: 0;
+}
+.project-inline button {
+  white-space: nowrap;
+}
+#workspace-title {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 布局管理按主操作、方案卡片和次要恢复工具分层；样式仅作用于本弹窗。 */
+#layout-dialog {
+  width: min(820px, calc(100vw - 32px));
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #f6f9fb;
+}
+/* 仅打开时启用弹性布局，保留原生 dialog 关闭后的隐藏行为。 */
+#layout-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+#layout-dialog .layout-dialog-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 26px;
+  background: #f3f8fc;
+  border-bottom: 1px solid #dce7ef;
+}
+#layout-dialog h2 {
+  margin: 0;
+  font-size: 21px;
+}
+#layout-dialog h3 {
+  margin: 0;
+  font-size: 15px;
+}
+#layout-dialog .muted {
+  line-height: 1.6;
+  margin: 6px 0 0;
+}
+#layout-dialog .dialog-dismiss {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 24px;
+  border-color: transparent;
+  background: transparent;
+}
+#layout-dialog .layout-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 26px;
+}
+#layout-dialog .project-manager {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+#layout-dialog .project-heading,
+#layout-dialog .scheme-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+#layout-dialog .manager-tag {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 20px;
+  background: #fff0c9;
+  color: #806528;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+#layout-dialog .manager-alert {
+  padding: 10px 14px;
+  margin: 0 0 14px;
+  color: #934c37;
+  background: #fff0e8;
+  border: 1px solid #efd0bf;
+  border-radius: 8px;
+  font-size: 13px;
+}
+#layout-dialog .project-picker-card {
+  padding: 14px 16px;
+  border: 1px solid #dbe7ef;
+  border-radius: 10px;
+  background: #fff;
+  margin-bottom: 22px;
+}
+#layout-dialog label {
+  margin: 0;
+  font-size: 12px;
+  color: #657f8e;
+}
+#layout-dialog input,
+#layout-dialog select {
+  margin-top: 6px;
+  min-height: 38px;
+  font-size: 14px;
+  background: #fff;
+}
+#layout-dialog button {
+  min-height: 36px;
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 7px;
+}
+#layout-dialog button:focus-visible,
+#layout-dialog summary:focus-visible {
+  outline: 2px solid #719fb9;
+  outline-offset: 3px;
+}
+#layout-dialog .project-rename {
+  margin-top: 10px;
+}
+#layout-dialog .project-rename summary {
+  color: #64859a;
+  font-size: 12px;
+  cursor: pointer;
+}
+#layout-dialog .scheme-heading .muted {
+  font-size: 12px;
+  margin: 0;
+}
+#layout-dialog .scheme-list {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+  margin-bottom: 18px;
+}
+#layout-dialog .scheme-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #dfe7ed;
+  border-radius: 10px;
+}
+#layout-dialog .scheme-card.is-current {
+  background: #edf6fc;
+  border-color: #bad7e8;
+  box-shadow: inset 3px 0 #7eafc9;
+}
+#layout-dialog .scheme-description {
+  min-width: 0;
+}
+#layout-dialog .scheme-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#layout-dialog .scheme-title b {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+#layout-dialog .current-tag {
+  color: #477b69;
+  background: #e1efe7;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+#layout-dialog .scheme-description small {
+  display: block;
+  margin-top: 7px;
+  font-size: 12px;
+  color: #79909d;
+}
+#layout-dialog .scheme-open {
+  flex-shrink: 0;
+  min-width: 76px;
+  background: #f5faff;
+  border-color: #c6dce9;
+}
+#layout-dialog .scheme-open:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: #759c8b;
+  opacity: 1;
+}
+#layout-dialog .scheme-actions-card {
+  background: #fff;
+  border: 1px solid #dfe7ed;
+  border-radius: 10px;
+  padding: 16px;
+}
+#layout-dialog .scheme-actions-card h3 small {
+  display: block;
+  color: #78909e;
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+#layout-dialog .project-inline {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 12px 0 0;
+}
+#layout-dialog .project-inline label {
+  flex: 1;
+  min-width: 0;
+}
+#layout-dialog .project-inline button {
+  min-width: 116px;
+  flex-shrink: 0;
+  margin-bottom: 1px;
+}
+#layout-dialog .manager-blue {
+  background: #dceef9;
+  border-color: #b9d5e6;
+  color: #315f79;
+}
+#layout-dialog .manager-blue:hover:not(:disabled) {
+  background: #cce4f3;
+}
+#layout-dialog .manager-orange {
+  background: #fbe3ce;
+  border-color: #e7c4a4;
+  color: #885c36;
+}
+#layout-dialog .manager-orange:hover:not(:disabled) {
+  background: #f5d6b9;
+}
+#layout-dialog .new-map-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #ecdcc3;
+  border-radius: 10px;
+  background: #fffaf1;
+}
+#layout-dialog .new-map-card summary,
+#layout-dialog .layout-secondary summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+#layout-dialog summary span {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #82929b;
+  font-weight: 400;
+}
+#layout-dialog .new-map-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 16px;
+}
+#layout-dialog .map-name-field,
+#layout-dialog .new-map-submit {
+  grid-column: 1 / -1;
+}
+#layout-dialog .new-map-submit {
+  display: flex;
+  justify-content: flex-end;
+}
+#layout-dialog .new-map-submit button {
+  min-width: 116px;
+}
+#layout-dialog .manager-local-note {
+  color: #8597a1;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 12px 0 22px;
+}
+#layout-dialog .layout-secondary {
+  border-top: 1px solid #dfe7ed;
+  padding: 16px 0;
+}
+#layout-dialog .layout-secondary > summary {
+  margin-bottom: 8px;
+}
+#layout-dialog .layout-secondary #layout-apply {
+  display: block;
+  margin-left: auto;
+  background: #fbe3ce;
+  color: #885c36;
+  border-color: #e7c4a4;
+}
+#layout-dialog .layout-dialog-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 26px;
+  background: #f6f9fb;
+  border-top: 1px solid #dce7ef;
+}
+#layout-dialog .layout-dialog-footer span {
+  font-size: 12px;
+  color: #8094a0;
+}
+@media (max-width: 560px) {
+  #layout-dialog .layout-dialog-header,
+  #layout-dialog .layout-dialog-body,
+  #layout-dialog .layout-dialog-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  #layout-dialog .project-inline {
+    flex-wrap: wrap;
+  }
+  #layout-dialog .project-inline label {
+    flex-basis: 100%;
+  }
+  #layout-dialog .project-inline button {
+    margin-left: auto;
+  }
+  #layout-dialog summary span {
+    display: block;
+    margin: 6px 0 0;
+  }
+  #layout-dialog .layout-dialog-footer span {
+    max-width: 65%;
+  }
+}
+
+/* 立面标题与批量入口同排，按钮与标题上沿对齐。 */
+.rack-elevation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 24px 0 12px;
+}
+.rack-elevation-heading h3 {
+  margin: 0;
+}
+.rack-elevation-heading > button {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 12px;
 }

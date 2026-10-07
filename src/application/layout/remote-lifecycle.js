@@ -39,9 +39,14 @@ export function createRemoteLifecycle(api) {
         throw Object.assign(Error(LOCK_MESSAGE), { code: 'PUBLISHED_LOCATION_RENAME_FORBIDDEN' });
     }
   }
-  // 未核实发布身份时默认锁定编码；确认未发布的货位才允许普通编辑。
+  // 明确独立的本地方案允许改码；云端未配置或断线不等于本地方案，仍须核验发布身份。
   function canRename(slot) {
-    return state.identityVerified && !identities.has(slot?.id) && !publishedCodes.has(slot?.code);
+    return (
+      !!slot &&
+      (state.identityVerified || (api.localOnly === true && !api.remote)) &&
+      !identities.has(slot.id) &&
+      !publishedCodes.has(slot.code)
+    );
   }
   // 读取发布身份与服务端能力，再恢复本机并发检查点；不会借初始化覆盖当前布局。
   async function initialize() {
@@ -132,7 +137,7 @@ export function createRemoteLifecycle(api) {
       const response = await api.remote.saveServerDraft(code(), {
         expectedDraftRevision: state.draftRevision,
         basedOnPublishedVersion: state.basedOnPublishedVersion,
-        schemaVersion: 4,
+        schemaVersion: 6,
         layout,
       });
       if (

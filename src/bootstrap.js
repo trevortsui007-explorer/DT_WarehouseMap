@@ -1,3 +1,4 @@
+import { createWorkspaceController } from './application/workspace/workspace-controller.js';
 import { createMapApplication } from './application/app.js';
 import { createBrowserLayoutRepository } from './infrastructure/persistence/browser-layout-repository.js';
 import { createHttpClient } from './infrastructure/api/http-client.js';
@@ -12,7 +13,7 @@ export async function bootstrapMap(ui) {
   try {
     // import.meta.env 由 Vite 提供；未配置服务地址时不启用远程布局仓库。
     const baseUrl = import.meta.env.VITE_WMS_API_BASE || '';
-    return await createMapApplication(ui, repository, {
+    const services = {
       remote: baseUrl ? createRemoteLayoutRepository(createHttpClient(baseUrl)) : null,
       remoteScope: baseUrl,
       runtimeRepository: createRuntimeRepository(createHttpClient(baseUrl)),
@@ -31,7 +32,15 @@ export async function bootstrapMap(ui) {
         void session.start();
         return session;
       },
-    });
+    };
+    if (repository.catalog)
+      return await createWorkspaceController({
+        ui,
+        root: repository,
+        services,
+        createApplication: createMapApplication,
+      });
+    return await createMapApplication(ui, repository, services);
   } catch (error) {
     // 可选调用 ?.() 只在 close 存在时执行，启动失败后释放已创建的存储连接。
     repository.close?.();

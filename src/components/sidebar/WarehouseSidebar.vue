@@ -1,10 +1,11 @@
 <script setup>
+import UnderlayPanel from './UnderlayPanel.vue';
 // 侧栏展示 FG 筛选后的货架与共享区域；选择和创建动作统一交给应用层。
 defineProps({ state: Object, actions: Object });
 const areaTypes = [
   ['aisle', '通道'],
   ['inbound', '入库暂存'],
-  ['outbound', '出库拣货暂存'],
+  ['outbound', '出库暂存'],
 ];
 const rackTypes = ['单层货架', '两层货架', '三层货架'];
 </script>
@@ -26,11 +27,13 @@ const rackTypes = ['单层货架', '两层货架', '三层货架'];
         <option value="fg">FG 归属</option>
       </select></label
     >
+    <UnderlayPanel :state="state" :actions="actions" />
     <h3>物理区域</h3>
-    <button id="boundary-edit" class="boundary-button" @click="actions.selectArea('boundary')">
+    <button id="boundary-edit" class="boundary-button" @click="actions.selectArea('boundary', $event)">
       ▧ {{ state.workMode === 'edit' ? '编辑' : '查看' }}仓库边界
     </button>
     <div class="area-tools">
+      <button :disabled="state.workMode !== 'edit'" @click="actions.addRoom()">＋ 房间</button>
       <button
         v-for="[type, label] in areaTypes"
         :key="type"
@@ -39,6 +42,19 @@ const rackTypes = ['单层货架', '两层货架', '三层货架'];
         @click="actions.addArea(type)"
       >
         ＋ {{ label }}
+      </button>
+      <button :disabled="state.workMode !== 'edit'" @click="actions.addArea('general')">＋ 通用区域</button>
+      <button :disabled="state.workMode !== 'edit'" @click="actions.addFixture()">＋ 固定设施</button>
+    </div>
+    <div id="room-list">
+      <button
+        v-for="room in state.rooms || []"
+        :key="room.id"
+        class="rack-row"
+        :class="{ selected: state.selectedIds.includes(room.id) }"
+        @click="actions.selectArea(room.id, $event)"
+      >
+        {{ room.name }} <small>{{ room.width }}×{{ room.depth }}m</small>
       </button>
     </div>
     <div id="area-list">
@@ -52,6 +68,17 @@ const rackTypes = ['单层货架', '两层货架', '三层货架'];
       >
         <span>{{ area.name }}</span
         ><small>{{ area.width }}×{{ area.depth }}m</small>
+      </button>
+    </div>
+    <div id="fixture-list">
+      <button
+        v-for="fixture in state.fixtures || []"
+        :key="fixture.id"
+        class="rack-row"
+        :class="{ selected: state.selectedIds.includes(fixture.id) }"
+        @click="actions.selectArea(fixture.id, $event)"
+      >
+        {{ fixture.name }} <small>{{ fixture.width }}×{{ fixture.depth }}m</small>
       </button>
     </div>
     <h3>新增货架</h3>

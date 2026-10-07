@@ -39,6 +39,7 @@ let application;
 let unmounted = false;
 // DOM 挂载后异步组装应用；启动失败显示可重试错误，不替换成示例 Runtime。
 async function start() {
+  let initializing = true;
   state.value = { ...state.value, loadError: '', ready: false };
   try {
     application = await bootstrapMap({
@@ -46,7 +47,7 @@ async function start() {
       patch: patch => {
         if (unmounted) return;
         // 对象展开执行浅合并，后面的 patch 覆盖同名字段；替换引用触发 shallowRef 更新。
-        state.value = { ...state.value, ...patch };
+        state.value = { ...state.value, ...patch, ...(initializing ? { ready: false } : {}) };
       },
       // nextTick 等待 Vue 更新 DOM，确保渲染器测量的是切换后已显示的容器。
       afterUpdate: callback => nextTick(callback),
@@ -56,6 +57,8 @@ async function start() {
       return;
     }
     actions.value = application;
+    initializing = false;
+    state.value = { ...state.value, ready: true };
   } catch (error) {
     state.value = { ...state.value, loadError: error.message, ready: false };
   }
@@ -70,11 +73,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="!state.ready || state.busy" class="workspace-loading" role="status">
-    {{ state.loadError || (state.busy ? '正在保存并应用布局…' : '正在载入本机布局…') }}
+  <div v-if="!state.ready || state.busy || state.workspaceCatalog?.busy" class="workspace-loading" role="status">
+    {{ state.loadError || (state.busy || state.workspaceCatalog?.busy ? '正在保存并应用布局…' : '正在载入本机布局…') }}
     <button v-if="state.loadError" @click="start">重试载入</button>
   </div>
-  <div class="app-shell" :inert="!state.ready || state.busy" :class="{ 'view-mode': state.workMode === 'view' }">
+  <div
+    class="app-shell"
+    :inert="!state.ready || state.busy || state.workspaceCatalog?.busy"
+    :class="{ 'view-mode': state.workMode === 'view' }"
+  >
     <AppToolbar :state="state" :actions="actions" />
     <main>
       <WarehouseSidebar :state="state" :actions="actions" />

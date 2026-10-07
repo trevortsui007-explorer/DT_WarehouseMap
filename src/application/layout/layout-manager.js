@@ -6,6 +6,7 @@ export function createLayoutManager(api) {
   let timer,
     pending = null,
     pendingLabel = '',
+    pendingProject = null,
     revision = 0,
     savedRevision = 0,
     fileSequence = 0,
@@ -80,6 +81,7 @@ export function createLayoutManager(api) {
   // 解析和验证待导入布局，只暂存候选模型，尚不替换当前工作。
   function stage(text, label) {
     pending = null;
+    pendingProject = null;
     state.canApply = false;
     try {
       const model = parseLayout(text),
@@ -163,8 +165,13 @@ export function createLayoutManager(api) {
     return enqueue(async () => {
       status('saving', '正在保存到本机…');
       try {
-        await api.store.save(next, label, before);
-        if (!disposed) api.replace(next);
+        await api.beforeReplace?.();
+        if (pendingProject) await api.store.replaceProject({ ...pendingProject, layout: next }, before);
+        else await api.store.save(next, label, before);
+        if (!disposed) {
+          api.replace(next);
+          await api.afterReplace?.();
+        }
         savedRevision = revision;
         pending = null;
         state.canApply = false;
@@ -213,6 +220,13 @@ export function createLayoutManager(api) {
     importFile,
     apply,
     stageHistory,
+    async replaceProject(backup) {
+      if (disposed || !api.canEdit() || applying) return false;
+      stage(JSON.stringify(backup.layout), '导入项目备份');
+      if (!pending) throw Error(state.importSummary);
+      pendingProject = backup;
+      return apply();
+    },
     // 远程载入也经过候选验证和替换前备份，避免直接覆盖本地用户工作。
     async replaceFromRemote(model) {
       if (disposed) return false;

@@ -1,3 +1,8 @@
+import { decodeUnderlay } from '../infrastructure/import-export/underlay-image.js';
+import { createWorkspaceResources } from './workspace/workspace-resources.js';
+import { createUnderlayRenderer } from '../renderers/konva/underlay.js';
+import { isFixture } from '../core/spatial/fixtures.js';
+import { spaces, isRoom } from '../core/spatial/rooms.js';
 import { resolvePhysicalArea, affectedPhysicalAreas } from './runtime/physical-area-runtime.js';
 import { validateAreaBindings } from '../core/spatial/area-bindings.js';
 import { uid } from '../core/model/model.js';
@@ -18,6 +23,8 @@ import { loadWorkspace } from './layout/load-workspace.js';
 export async function createMapApplication(ui, repository, services = {}) {
   const lifecycle = new AbortController();
   let disposed = false;
+  let resources = null,
+    underlayRenderer = null;
   let selectedVirtual = null,
     detail = null,
     detailSequence = 0;
@@ -39,7 +46,9 @@ export async function createMapApplication(ui, repository, services = {}) {
     level = 0,
     colorMode = 'inventory';
   try {
-    model = await loadWorkspace(layoutStore, services);
+    model = services.initialLayout
+      ? structuredClone(services.initialLayout)
+      : await loadWorkspace(layoutStore, services);
   } catch (e) {
     throw Error('本机布局未载入：' + e.message, { cause: e });
   }
@@ -69,6 +78,10 @@ export async function createMapApplication(ui, repository, services = {}) {
     runtime.state.locations = Object.create(null);
     runtime.state.virtualAreas = Object.create(null);
     runtime.state.connected = false;
+    if (services.workspaceInfo?.remoteEligible === false && !model.warehouseCode) {
+      runtime.status('idle', '未关联运行态');
+      return;
+    }
     runtime.status('loading');
     if (services.warehouseCode && model.warehouseCode && services.warehouseCode !== model.warehouseCode) {
       runtime.status('error', '布局仓库与 Runtime 配置不一致，请确认 WMS 范围');
@@ -77,7 +90,7 @@ export async function createMapApplication(ui, repository, services = {}) {
     runtimeSession = services.startRuntime?.(runtime, () => model);
     if (!runtimeSession) runtime.status('error', '尚未配置 WMS Runtime 数据源');
   }
-  selected = model.racks[0]?.id;
+  selected = services.workspaceInfo ? null : model.racks[0]?.id;
   const current = () => model.racks.find(r => r.id === selected),
     visible = () => model.racks.filter(r => r.spaceId === 'main'),
     matches = r => zone === 'ALL' || r.fgCode === zone,
@@ -133,12 +146,7 @@ export async function createMapApplication(ui, repository, services = {}) {
       cad.set([id]);
     },
     selectArea(id, event) {
-      if (id === 'boundary') {
-        cad.clear(false);
-        selected = null;
-        spatial.setActive(id);
-        render();
-      } else cad.select(id, event);
+      cad.select(id, event, true);
     },
     onAdded(id) {
       cad.set([id], false);
@@ -221,11 +229,11 @@ export async function createMapApplication(ui, repository, services = {}) {
     stage,
     unit,
     host,
-    canEdit,
+    canEdit: () => canEdit() && !resources?.interaction,
     signal: lifecycle.signal,
     externalBounds: () => spatial.doorBounds(),
     model: () => model,
-    objects: () => [...filtered(), ...model.areas],
+    objects: () => [...filtered(), ...model.areas, ...(model.fixtures || []), ...spaces(model)],
     view: () => view,
     commit,
     record,
@@ -239,7 +247,7 @@ export async function createMapApplication(ui, repository, services = {}) {
     slotSelected: () => !!slotId,
     primary(id) {
       slotId = null;
-      if (model.areas.some(a => a.id === id)) {
+      if ([...model.areas, ...(model.fixtures || []), ...spaces(model)].some(a => a.id === id)) {
         selected = null;
         spatial.setActive(id);
       } else {
@@ -279,9 +287,10 @@ export async function createMapApplication(ui, repository, services = {}) {
           ];
     ui.patch({
       ready: initialized,
+      workspace: services.workspaceInfo || null,
       runtime: structuredClone(runtime.state),
       physicalArea:
-        spatial.selected() && !spatial.doorId() && spatial.selected().id !== 'boundary'
+        spatial.selected() && !spatial.doorId() && !isRoom(spatial.selected()) && !isFixture(spatial.selected())
           ? areaRuntime(spatial.selected().id)
           : null,
       areaBindings: model.areaBindings.filter(binding => binding.areaId === spatial.selected()?.id),
@@ -296,6 +305,11 @@ export async function createMapApplication(ui, repository, services = {}) {
       level,
       racks: structuredClone(filtered()),
       areas: structuredClone(model.areas),
+      rooms: structuredClone(model.rooms || []),
+      fixtures: structuredClone(model.fixtures || []),
+      resources: resources?.snapshot(),
+      roomSelected: isRoom(spatial.selected()),
+      selectionHasRoom: cad.ids().some(id => spaces(model).some(room => room.id === id)),
       rack: current() ? structuredClone(current()) : null,
       slot: chosen() ? structuredClone(chosen()) : null,
       spatial: spatial.selected() ? structuredClone(spatial.selected()) : null,
@@ -321,6 +335,7 @@ export async function createMapApplication(ui, repository, services = {}) {
     spatial.render();
     publish();
     draw2d();
+    void underlayRenderer?.render();
     if (view === '3d') draw3d();
   }
 
@@ -336,6 +351,8 @@ export async function createMapApplication(ui, repository, services = {}) {
   observer.observe(wrap);
   const manager = createLayoutManager({
     store: layoutStore,
+    beforeReplace: () => resources?.flush(),
+    afterReplace: () => resources?.reload(),
     validate(next) {
       if (next.layoutCode !== model.layoutCode || next.layoutId !== model.layoutId)
         throw Error('请在独立工作区打开不同布局身份的地图');
@@ -371,6 +388,7 @@ export async function createMapApplication(ui, repository, services = {}) {
     model: () => model,
     local: repository,
     remote: services.remote,
+    localOnly: services.workspaceInfo?.remoteEligible === false,
     scope: services.remoteScope || '',
     flush: () => manager.save('本机草稿'),
     replace: next => manager.replaceFromRemote(next),
@@ -403,8 +421,53 @@ export async function createMapApplication(ui, repository, services = {}) {
     ui,
     execute: history.execute,
   });
+  resources = createWorkspaceResources({
+    backupNames: () =>
+      services.workspaceInfo
+        ? { projectName: services.workspaceInfo.projectName, schemeName: services.workspaceInfo.name }
+        : undefined,
+    importAsNewProject: services.importAsNewProject,
+    checkpoint: history.checkpoint,
+    setEditLock(value) {
+      persistenceBusy = value;
+      render();
+    },
+    repository,
+    model: () => model,
+    canEdit,
+    execute: history.execute,
+    selectedId: () => (cad.ids().length > 1 ? null : spatial.doorId() || spatial.activeId() || selected),
+    cancelCad: () => cad.cancel(),
+    changed: () => {
+      if (initialized) {
+        publish();
+        draw2d();
+        void underlayRenderer?.render();
+      }
+    },
+    replaceProject: backup => manager.replaceProject(backup),
+  });
+  underlayRenderer = createUnderlayRenderer(stage, unit, {
+    decodeImage: decodeUnderlay,
+    state: () => ({ ...resources.snapshot(), visible: workMode === 'edit' && view === '2d' }),
+    click: point => resources.click(point),
+    move: position => resources.commands.updateUnderlay(position),
+    error: error => resources.error(error),
+  });
+  window.addEventListener(
+    'beforeunload',
+    event => {
+      if (resources.snapshot().busy) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    },
+    { signal: lifecycle.signal }
+  );
+  await resources.reload();
   const commands = {
     ...layoutCommands,
+    ...resources.commands,
     selectVirtualArea,
     // 按需读取只读详情；请求序号阻止后返回的旧请求覆盖新选择。
     async loadVirtualDetail(code) {
@@ -514,7 +577,8 @@ export async function createMapApplication(ui, repository, services = {}) {
     },
     // 定位警告对象；货架可能被 FG 筛选隐藏，需要先显示全部货架。
     selectWarning(id) {
-      if (model.areas.some(area => area.id === id)) spatial.select(id);
+      if ([...model.areas, ...(model.fixtures || []), ...spaces(model)].some(area => area.id === id))
+        spatial.select(id);
       else {
         zone = 'ALL';
         cad.set([id]);
@@ -531,7 +595,10 @@ export async function createMapApplication(ui, repository, services = {}) {
     // 显式保存服务器草稿，与本地自动保存和正式发布相互分离。
     async save() {
       cad.finishNudge();
-      if (canEdit() && (await remoteLifecycle.save())) toast('服务器草稿已保存');
+      if (!canEdit()) return;
+      if (services.workspaceInfo?.remoteEligible === false) {
+        if (await manager.save('手动保存本地方案')) toast('本地方案已保存');
+      } else if (await remoteLifecycle.save()) toast('服务器草稿已保存');
     },
     retryRemote: () => remoteLifecycle.initialize(),
     // 冲突时仅保留本机工作，不尝试合并或覆盖服务器草稿。
@@ -607,6 +674,28 @@ export async function createMapApplication(ui, repository, services = {}) {
   startRuntime();
   return {
     ...commands,
+    refreshWorkspaceInfo: () => publish(),
+    // 切换前结束手势、等待资源与布局保存；失败保留本会话和编辑历史。
+    async prepareWorkspaceSwitch() {
+      if (disposed || persistenceBusy) throw Error('当前正在处理布局，请稍后再切换');
+      cad.finishNudge();
+      cad.cancel();
+      persistenceBusy = true;
+      publish();
+      try {
+        await resources.flush();
+        if (resources.snapshot().error) throw Error('本机资源存在未解决错误：' + resources.snapshot().error);
+        if (!(await manager.flush())) throw Error('当前方案保存失败，未切换');
+      } catch (error) {
+        persistenceBusy = false;
+        publish();
+        throw error;
+      }
+    },
+    cancelWorkspaceSwitch() {
+      persistenceBusy = false;
+      publish();
+    },
     retryRuntime: () => (runtimeSession ? runtimeSession.start() : startRuntime()),
     // 终止会话和监听、释放渲染资源；等待最后一次保存结束后再关闭仓库连接。
     dispose() {
@@ -618,9 +707,10 @@ export async function createMapApplication(ui, repository, services = {}) {
       lifecycle.abort();
       observer.disconnect();
       clearTimeout(toast.timer);
+      underlayRenderer?.destroy();
       three.destroy();
       konva.destroy();
-      return saving.finally(() => repository.close?.());
+      return Promise.all([saving, resources.dispose()]).finally(() => repository.close?.());
     },
   };
 }
