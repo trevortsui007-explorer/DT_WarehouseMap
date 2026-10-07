@@ -8,7 +8,18 @@ export const LEGACY_KEYS = [
   'warehouse-layout-v1',
 ];
 export const MIGRATION_KEY = 'legacy-localstorage-v1';
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// 不同 Schema 升级路径会改变对象字段插入顺序；比较内容而非序列化顺序，数组顺序仍有意义。
+const canonical = value => {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map(key => [key, canonical(value[key])])
+    );
+  return value;
+};
+const same = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
 // 按已识别旧键的优先顺序解析并校验；稳定记录 ID 使同一来源重试不会重复生成历史。
 function decode(sources) {
