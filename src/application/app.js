@@ -468,6 +468,10 @@ export async function createMapApplication(ui, repository, services = {}) {
   await resources.reload();
   const commands = {
     ...layoutCommands,
+    alignmentOptions: () => cad.alignmentOptions(),
+    previewAlignment: (...args) => cad.previewAlignment(...args),
+    applyAlignment: (...args) => cad.applyAlignment(...args),
+    clearAlignment: () => cad.clearAlignment(),
     ...resources.commands,
     selectVirtualArea,
     // 按需读取只读详情；请求序号阻止后返回的旧请求覆盖新选择。
@@ -584,6 +588,7 @@ export async function createMapApplication(ui, repository, services = {}) {
         zone = 'ALL';
         cad.set([id]);
       }
+      cad.focus();
     },
     backToRack() {
       spatial.clear();

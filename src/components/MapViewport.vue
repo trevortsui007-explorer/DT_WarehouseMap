@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import AlignmentDialog from './dialogs/AlignmentDialog.vue';
 // defineProps 是 script setup 编译宏；state 用于显示，actions 将操作交给 Application。
 const props = defineProps({ state: Object, actions: Object });
 // computed 随依赖自动重新计算按钮可用性；这只是界面提示，命令执行器仍会检查编辑权限。
@@ -33,7 +34,11 @@ const editableSelection = computed(
       <button id="focus-selection" :disabled="!state.selection.count && !state.doorId">聚焦 F</button>
       <button id="selection-copy" :disabled="!editableSelection">复制</button
       ><button id="selection-delete" :disabled="!editableSelection">删除</button>
-      <button id="precise-open" :disabled="!editableSelection">精确变换</button
+      <AlignmentDialog :actions="actions" :disabled="!editableSelection" /><button
+        id="precise-open"
+        :disabled="!editableSelection"
+      >
+        精确变换</button
       ><button id="array-open" :disabled="!editableSelection">阵列复制</button
       ><button id="shortcut-help">快捷键 ?</button>
     </div>

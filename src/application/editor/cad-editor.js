@@ -1,3 +1,4 @@
+import { alignObjects } from '../../core/geometry/alignment.js';
 import { isRoom } from '../../core/spatial/rooms.js';
 import { createSelectionService } from '../selection/selection-service.js';
 import { createGeometryCommands } from '../commands/geometry-commands.js';
@@ -426,6 +427,35 @@ export function createCadEditor(api) {
     },
     beginNodes: surface.beginNodes,
     bind: surface.bind,
+    alignmentOptions: () => editable().map(o => ({ id: o.id, name: o.name })),
+    clearAlignment: () => surface.clear(),
+    previewAlignment(referenceId, mode, gap) {
+      const result = alignObjects(
+        objects(),
+        editable().find(o => o.id === referenceId),
+        mode,
+        gap
+      );
+      validateObjects(result, api.model());
+      surface.preview(result);
+      return result.map(o => ({ id: o.id, name: o.name, x: o.x, y: o.y }));
+    },
+    applyAlignment(referenceId, mode, gap) {
+      return api.execute('AlignObjects', () => {
+        const result = alignObjects(
+          objects(),
+          editable().find(o => o.id === referenceId),
+          mode,
+          gap
+        );
+        validateObjects(result, api.model());
+        for (const next of result)
+          Object.assign(
+            editable().find(o => o.id === next.id),
+            { x: next.x, y: next.y }
+          );
+      });
+    },
     bindResize: surface.bindResize,
     bindDoor: surface.bindDoor,
     render,
