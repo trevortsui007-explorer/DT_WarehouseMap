@@ -55,6 +55,13 @@ export function createInteractionSurface({ stage, unit, host, canEdit, isPanning
       event.cancelBubble = true;
       events.resizeStart();
     });
+    handle.on('dragmove', event => {
+      event.cancelBubble = true;
+      const width = Math.max(0.5, (handle.x() + 5) / unit);
+      const depth = Math.max(0.5, (handle.y() + 5) / unit);
+      handle.position({ x: width * unit - 5, y: depth * unit - 5 });
+      handle.getAttr('resizePreview')?.(width, depth);
+    });
     handle.on('dragend', event => {
       event.cancelBubble = true;
       events.resizeEnd(area, (handle.x() + 5) / unit, (handle.y() + 5) / unit);

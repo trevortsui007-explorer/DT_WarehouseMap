@@ -109,18 +109,59 @@ export function drawSpatial2d(api, layer, unit) {
           dash: a.type === 'aisle' ? [8, 4] : undefined,
         })
       );
+      const fixture = !!FIXTURE_TYPES[a.type] || !api.areaRuntime?.(a.id)?.rows?.length;
+      // 无运行态明细的区域和设施使用单行名称，尺寸留在属性面板，避免小占地文字溢出。
       g.add(
         new Konva.Text({
-          x: 6,
-          y: 6,
-          width: Math.max(20, a.width * unit - 12),
-          text: `${a.name}\n${a.width} × ${a.depth} m`,
-          fontSize: 12,
-          lineHeight: 1.5,
+          x: fixture ? 2 : 6,
+          y: fixture ? 1 : 6,
+          width: fixture ? Math.max(1, a.width * unit - 4) : Math.max(20, a.width * unit - 12),
+          height: fixture ? Math.max(1, a.depth * unit - 2) : undefined,
+          wrap: fixture ? 'none' : 'word',
+          ellipsis: fixture,
+          align: fixture ? 'center' : 'left',
+          verticalAlign: fixture ? 'middle' : 'top',
+          text: fixture ? a.name : `${a.name}\n${a.width} × ${a.depth} m`,
+          fontSize: fixture
+            ? Math.max(1, Math.min(12, a.depth * unit * 0.55, (a.width * unit - 4) / Math.max(2, a.name.length)))
+            : 12,
+          lineHeight: fixture ? 1 : 1.5,
           fill: '#576872',
           listening: false,
         })
       );
+      // 中文细长区域按字竖排，宽区域横排；缩放预览也复用同一排版规则。
+      function layoutName(width, depth) {
+        if (!fixture || FIXTURE_TYPES[a.type]) return;
+        const label = g.children[1];
+        const padding = Math.min(4, width * unit * 0.12, depth * unit * 0.12);
+        const availableWidth = Math.max(1, width * unit - padding * 2);
+        const availableHeight = Math.max(1, depth * unit - padding * 2);
+        const characters = Array.from(a.name);
+        const vertical = depth > width * 1.8;
+        const count = Math.max(1, characters.length);
+        label.setAttrs({
+          x: padding,
+          y: padding,
+          width: availableWidth,
+          height: availableHeight,
+          text: vertical ? characters.join('\n') : a.name,
+          fontSize: Math.max(
+            1,
+            Math.min(
+              28,
+              vertical ? availableWidth * 0.85 : availableWidth / count,
+              vertical ? availableHeight / (count * 1.2) : availableHeight * 0.7
+            )
+          ),
+          lineHeight: vertical ? 1.2 : 1,
+          align: 'center',
+          verticalAlign: 'middle',
+          wrap: 'none',
+          ellipsis: true,
+        });
+      }
+      layoutName(a.width, a.depth);
       if (a.type === 'aisle')
         g.add(
           new Konva.Line({
@@ -196,6 +237,31 @@ export function drawSpatial2d(api, layer, unit) {
           stroke: '#996c27',
           strokeWidth: 2,
           draggable: true,
+        });
+        // 拖动只更新渲染节点，不逐帧提交布局或触发保存；结束后由命令统一校验。
+        const contents = [...g.children];
+        const original = contents.map(node => ({
+          node,
+          x: node.x(),
+          y: node.y(),
+          width: node.width(),
+          height: node.height(),
+          fontSize: node instanceof Konva.Text ? node.fontSize() : null,
+        }));
+        handle.setAttr('resizePreview', (width, depth) => {
+          const sx = width / a.width,
+            sy = depth / a.depth;
+          for (const item of original) {
+            if (item.node instanceof Konva.Line) {
+              item.node.scale({ x: sx, y: sy });
+              continue;
+            }
+            item.node.position({ x: item.x * sx, y: item.y * sy });
+            item.node.size({ width: item.width * sx, height: item.height * sy });
+            if (item.fontSize !== null) item.node.fontSize(Math.max(1, Math.min(12, item.fontSize * Math.min(sx, sy))));
+          }
+          layoutName(width, depth);
+          layer.batchDraw();
         });
         api.bindResize(handle, a);
         g.add(handle);
