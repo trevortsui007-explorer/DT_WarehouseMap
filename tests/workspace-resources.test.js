@@ -378,3 +378,35 @@ test('survey metadata write failure restores geometry and original Undo stack', 
   expect(e.history.canRedo()).toBe(false);
   expect(service.snapshot().survey.status).toBe('已记录待应用');
 });
+
+test('live underlay settings preview immediately, debounce saves and failed flush can retry', async () => {
+  const m = layout(),
+    saveResources = vi.fn(async () => {});
+  const service = createWorkspaceResources({
+    repository: { loadResources: async () => ({ underlay: image(), surveys: [] }), saveResources },
+    model: () => m,
+    canEdit: () => true,
+    selectedId: () => null,
+    changed() {},
+  });
+  await service.reload();
+  vi.useFakeTimers();
+  const form = { ...image(), width: image().pixelWidth * image().scale, x: 12 };
+  service.commands.previewUnderlay(form);
+  service.commands.previewUnderlay({ ...form, x: 14 });
+  expect(service.image.x).toBe(14);
+  expect(saveResources).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(800);
+  expect(saveResources).toHaveBeenCalledTimes(1);
+  saveResources.mockRejectedValueOnce(Error('quota'));
+  service.commands.previewUnderlay({ ...form, x: 16 });
+  await expect(service.flush()).rejects.toThrow('quota');
+  expect(service.image.x).toBe(16);
+  expect(service.snapshot().settingsStatus).toBe('failed');
+  await service.flush();
+  expect(service.snapshot().settingsStatus).toBe('saved');
+  service.commands.previewUnderlay({ ...form, width: '' });
+  expect(service.image.x).toBe(16);
+  await service.dispose();
+  vi.useRealTimers();
+});

@@ -1,4 +1,8 @@
-import { parseWorkspaceImport } from '../../core/workspace/import-workspace.js';
+import {
+  createProjectZip,
+  readProjectFile,
+  downloadProjectZip,
+} from '../../infrastructure/import-export/project-zip.js';
 import {
   emptyResources,
   validateResources,
@@ -9,7 +13,6 @@ import { calibrate, worldToImage } from '../../core/workspace/calibration.js';
 import { surveyTarget, geometryStamp, surveyStatus, createSurvey } from '../../core/workspace/survey.js';
 import { validateLayout } from '../../core/model/layout-validation.js';
 import { readUnderlay, verifyUnderlay } from '../../infrastructure/import-export/underlay-image.js';
-import { exportLayout } from '../../infrastructure/import-export/json-exporter.js';
 
 // 本机资源有独立保存队列；成功落盘后才更新展示，不进入布局 Undo 或 Runtime。
 export function createWorkspaceResources(api) {
@@ -19,7 +22,34 @@ export function createWorkspaceResources(api) {
     interaction = null,
     points = [],
     disposed = false;
-  const state = { busy: false, error: '', recoveries: [] };
+  let settingsTimer = null,
+    settingsPending = false;
+  const state = { busy: false, error: '', recoveries: [], settingsStatus: 'saved' };
+  async function flushSettings() {
+    clearTimeout(settingsTimer);
+    await queue;
+    if (!settingsPending) return;
+    const snapshot = validateResources(data);
+    state.settingsStatus = 'saving';
+    state.busy = true;
+    notify();
+    const saving = api.repository.saveResources(api.model().layoutId, snapshot);
+    queue = saving.catch(() => {});
+    try {
+      await saving;
+      settingsPending = false;
+      state.settingsStatus = 'saved';
+      state.error = '';
+      revision++;
+    } catch (error) {
+      state.settingsStatus = 'failed';
+      fail(error);
+      throw error;
+    } finally {
+      state.busy = false;
+      notify();
+    }
+  }
   const notify = () => {
     if (!disposed) api.changed();
   };
@@ -29,6 +59,11 @@ export function createWorkspaceResources(api) {
   };
   async function run(task, edit = true) {
     if (state.busy || (edit && !api.canEdit())) return false;
+    try {
+      await flushSettings();
+    } catch {
+      return false;
+    }
     state.busy = true;
     state.error = '';
     notify();
@@ -82,10 +117,10 @@ export function createWorkspaceResources(api) {
   }
   return {
     reload,
-    flush: () => queue,
+    flush: flushSettings,
     dispose() {
       disposed = true;
-      return queue;
+      return flushSettings();
     },
     snapshot: () => ({
       ...state,
@@ -133,6 +168,33 @@ export function createWorkspaceResources(api) {
           interaction = null;
           points = [];
         }),
+      previewUnderlay(input, immediate = false) {
+        if (!api.canEdit() || state.busy || !data.underlay) return;
+        const next = { ...data.underlay };
+        for (const key of ['x', 'y', 'rotation', 'opacity', 'width']) {
+          if (input[key] === '' || !Number.isFinite(Number(input[key]))) return;
+        }
+        if (Number(input.width) <= 0) return;
+        for (const key of ['x', 'y', 'rotation', 'opacity']) next[key] = Number(input[key]);
+        for (const key of ['visible', 'locked']) next[key] = !!input[key];
+        if (Math.abs(Number(input.width) - next.pixelWidth * next.scale) > 1e-8) {
+          next.scale = Number(input.width) / next.pixelWidth;
+          next.calibration = null;
+        }
+        try {
+          data = validateResources({ ...data, underlay: next });
+        } catch (error) {
+          fail(error);
+          return;
+        }
+        if (next.locked || !next.visible) interaction = null;
+        settingsPending = true;
+        state.settingsStatus = 'dirty';
+        state.error = '';
+        notify();
+        clearTimeout(settingsTimer);
+        settingsTimer = setTimeout(() => void flushSettings().catch(() => {}), immediate ? 0 : 800);
+      },
       updateUnderlay: input =>
         run(async () => {
           if (!data.underlay) return;
@@ -147,6 +209,7 @@ export function createWorkspaceResources(api) {
           await persist({ ...data, underlay: next });
           if (next.locked || !next.visible) interaction = null;
         }),
+      saveUnderlaySettings: () => flushSettings().catch(() => {}),
       removeUnderlay: () =>
         run(async () => {
           await persist({ ...data, underlay: null });
@@ -213,7 +276,7 @@ export function createWorkspaceResources(api) {
         }),
       exportProject: () =>
         run(
-          async () => exportLayout(projectBackup(api.model(), data, api.backupNames?.()), 'warehouse-project.json'),
+          async () => downloadProjectZip(await createProjectZip(projectBackup(api.model(), data, api.backupNames?.()))),
           false
         ),
       async importProject(file, destination = 'replace') {
@@ -221,7 +284,7 @@ export function createWorkspaceResources(api) {
         let backup;
         const valid = await run(async () => {
           if (file.size > 40 * 1024 * 1024) throw Error('项目备份不能超过 40 MB');
-          const parsed = parseWorkspaceImport(await file.text());
+          const parsed = await readProjectFile(file);
           backup = parsed.backup;
           if (destination !== 'new') {
             if (backup.layout.layoutId !== api.model().layoutId || backup.layout.layoutCode !== api.model().layoutCode)

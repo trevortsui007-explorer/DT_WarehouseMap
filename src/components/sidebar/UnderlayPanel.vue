@@ -15,6 +15,15 @@ watch(
     if (image.value) Object.assign(form, image.value, { width: image.value.pixelWidth * image.value.scale });
   }
 );
+function preview() {
+  // 等待 v-model 同步后提交，空值由 Application 保留上一有效画面。
+  Promise.resolve().then(() => props.actions.previewUnderlay({ ...form }));
+}
+function changed(event) {
+  Promise.resolve().then(() =>
+    props.actions.previewUnderlay({ ...form }, ['range', 'checkbox'].includes(event.target.type))
+  );
+}
 async function file(event, action) {
   const input = event.target;
   await action(input.files?.[0]);
@@ -34,7 +43,13 @@ async function file(event, action) {
     /></label>
     <template v-if="image">
       <p>{{ image.name }} · {{ image.needsReview ? '待核对' : image.calibration ? '已标定' : '未标定' }}</p>
-      <form class="workspace-form" @submit.prevent="actions.updateUnderlay(form)">
+      <form
+        class="workspace-form"
+        @submit.prevent="actions.saveUnderlaySettings()"
+        @input="preview"
+        @change="changed"
+        @focusout="actions.saveUnderlaySettings()"
+      >
         <label>原点 X / 米<input v-model="form.x" type="number" step="any" :disabled="disabled" required /></label>
         <label>原点 Y / 米<input v-model="form.y" type="number" step="any" :disabled="disabled" required /></label>
         <label>旋转 / 度<input v-model="form.rotation" type="number" step="any" :disabled="disabled" required /></label>
@@ -46,7 +61,14 @@ async function file(event, action) {
         /></label>
         <label class="check-label"><input v-model="form.visible" type="checkbox" :disabled="disabled" />显示</label>
         <label class="check-label"><input v-model="form.locked" type="checkbox" :disabled="disabled" />锁定拖动</label>
-        <button :disabled="disabled">保存底图设置</button>
+        <p role="status">
+          {{
+            { dirty: '待自动保存', saving: '正在保存…', saved: '已保存到本机', failed: '保存失败，调整已保留' }[
+              resource.settingsStatus
+            ]
+          }}
+        </p>
+        <button v-if="resource.settingsStatus === 'failed'" :disabled="disabled">重试保存</button>
       </form>
       <div class="area-tools">
         <button
@@ -82,7 +104,7 @@ async function file(event, action) {
     <p v-if="resource?.busy" class="muted">正在处理本机资源…</p>
     <p v-if="resource?.error" role="alert" class="workspace-error">{{ resource.error }}</p>
     <hr />
-    <button :disabled="resource?.busy" @click="actions.exportProject()">导出项目备份</button>
+    <button :disabled="resource?.busy" @click="actions.exportProject()">导出完整项目 ZIP</button>
     <label v-if="state.workspaceCatalog"
       >文件导入方式<select v-model="destination" :disabled="disabled">
         <option value="new">作为新项目打开</option>
@@ -90,9 +112,9 @@ async function file(event, action) {
       </select></label
     >
     <label
-      >导入布局 / 项目备份<input
+      >导入布局 / 项目备份（JSON / ZIP）<input
         type="file"
-        accept=".json,application/json"
+        accept=".json,.zip,application/json,application/zip"
         :disabled="disabled"
         @change="file($event, value => actions.importProject(value, destination))"
     /></label>
