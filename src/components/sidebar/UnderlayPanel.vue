@@ -5,7 +5,7 @@ const resource = computed(() => props.state.resources);
 const image = computed(() => resource.value?.underlay);
 const disabled = computed(() => props.state.workMode !== 'edit' || resource.value?.busy || props.state.busy);
 const form = reactive({ x: 0, y: 0, rotation: 0, width: 0, opacity: 0.55, visible: true, locked: true });
-const destination = ref('replace');
+const destination = ref('new');
 const distance = ref(''),
   unit = ref('m');
 // 只在资源保存或换图后同步表单，运行态推送不覆盖正在输入的勘察内容。
@@ -84,19 +84,22 @@ async function file(event, action) {
     <hr />
     <button :disabled="resource?.busy" @click="actions.exportProject()">导出项目备份</button>
     <label v-if="state.workspaceCatalog"
-      >项目备份导入方式<select v-model="destination" :disabled="disabled">
+      >文件导入方式<select v-model="destination" :disabled="disabled">
         <option value="new">作为新项目打开</option>
         <option value="replace">替换当前方案</option>
       </select></label
     >
     <label
-      >导入项目备份<input
+      >导入布局 / 项目备份<input
         type="file"
         accept=".json,application/json"
         :disabled="disabled"
         @change="file($event, value => actions.importProject(value, destination))"
     /></label>
-    <p class="muted">包含当前方案的布局、底图及实测记录。选择替换时，会保留替换前完整项目。</p>
+    <p class="muted">
+      支持布局 JSON
+      和项目备份，跨电脑请选「作为新项目打开」。普通布局仅含地图；完整备份还含底图和实测。替换前会保留恢复包。
+    </p>
     <details v-if="resource?.recoveries?.length">
       <summary>替换前项目恢复包</summary>
       <button

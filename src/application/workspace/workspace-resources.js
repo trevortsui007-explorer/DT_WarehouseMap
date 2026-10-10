@@ -1,8 +1,9 @@
+import { parseWorkspaceImport } from '../../core/workspace/import-workspace.js';
 import {
   emptyResources,
   validateResources,
   projectBackup,
-  parseProjectBackup,
+  markResourcesForReview,
 } from '../../core/workspace/resources.js';
 import { calibrate, worldToImage } from '../../core/workspace/calibration.js';
 import { surveyTarget, geometryStamp, surveyStatus, createSurvey } from '../../core/workspace/survey.js';
@@ -220,7 +221,14 @@ export function createWorkspaceResources(api) {
         let backup;
         const valid = await run(async () => {
           if (file.size > 40 * 1024 * 1024) throw Error('项目备份不能超过 40 MB');
-          backup = parseProjectBackup(await file.text());
+          const parsed = parseWorkspaceImport(await file.text());
+          backup = parsed.backup;
+          if (destination !== 'new') {
+            if (backup.layout.layoutId !== api.model().layoutId || backup.layout.layoutCode !== api.model().layoutCode)
+              throw Error('文件属于另一张地图，请将导入方式改为「作为新项目打开」；当前工作已保留');
+            // 纯布局不包含资源，替换时保留现有底图和实测，并标记待核对。
+            if (parsed.layoutOnly) backup.resources = markResourcesForReview(data);
+          }
           await verifyUnderlay(backup.resources.underlay);
         });
         if (valid) {
