@@ -76,7 +76,7 @@ function apply() {
     </header>
     <section v-if="draft" class="batch-code-body">
       <div class="batch-code-options" @keydown.enter="generateOnEnter">
-        <label>前缀<input v-model="options.prefix" /></label>
+        <label>前缀（{层号} 自动替换）<input v-model="options.prefix" /></label>
         <label>起始编号<input v-model.number="options.start" type="number" min="0" /></label>
         <label>每列递增<input v-model.number="options.step" type="number" min="1" /></label>
         <label>数字位数<input v-model.number="options.digits" type="number" min="1" max="12" /></label>

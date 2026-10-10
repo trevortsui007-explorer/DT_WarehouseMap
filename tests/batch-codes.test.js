@@ -113,3 +113,24 @@ test('three-level SZX codes map bottom X, middle Z and top S without changing sl
   expect(JSON.stringify(rack)).toBe(before);
   expect(() => generateCodes(fixture().racks[0], { ...options, layerFormat: 'szx' })).toThrow('三层');
 });
+
+test('prefix and suffix resolve every layer placeholder using the selected format', () => {
+  const rack = { id: 'three', name: 'A', cols: 2, levels: 3 };
+  rack.slots = slots(rack);
+  const before = JSON.stringify(rack);
+  const rule = { ...options, prefix: '{层号}', suffix: 'W', start: 1, digits: 3 };
+  expect(generateCodes(rack, { ...rule, layerFormat: 'szx' }).map(row => row.code)).toEqual([
+    'X001W',
+    'X002W',
+    'Z001W',
+    'Z002W',
+    'S001W',
+    'S002W',
+  ]);
+  expect(
+    generateCodes(rack, { ...rule, prefix: '{层号}-{层号}-', suffix: '-{层号}', level: 2, reverse: true }).map(
+      row => row.code
+    )
+  ).toEqual(['2-2-002-2', '2-2-001-2']);
+  expect(JSON.stringify(rack)).toBe(before);
+});

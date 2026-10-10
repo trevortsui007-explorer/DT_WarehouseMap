@@ -9,15 +9,14 @@ export function generateCodes(rack, options) {
     .map(slot => {
       const number = start + (reverse ? rack.cols - slot.col : slot.col - 1) * step;
       if (!Number.isSafeInteger(number)) throw Error('编号超出安全整数范围');
+      // 前后缀共享层号格式，替换全部占位符，不修改原货位。
+      const layerCode = options.layerFormat === 'szx' ? { 1: 'X', 2: 'Z', 3: 'S' }[slot.level] : slot.level;
       return {
         id: slot.id,
         code:
-          prefix +
+          prefix.replaceAll('{层号}', layerCode) +
           String(number).padStart(digits, '0') +
-          suffix.replaceAll(
-            '{层号}',
-            options.layerFormat === 'szx' ? { 1: 'X', 2: 'Z', 3: 'S' }[slot.level] : slot.level
-          ),
+          suffix.replaceAll('{层号}', layerCode),
       };
     });
 }
