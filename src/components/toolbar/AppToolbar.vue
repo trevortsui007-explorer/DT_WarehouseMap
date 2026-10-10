@@ -1,11 +1,12 @@
 <script setup>
+import ToolIcon from '../ToolIcon.vue';
 // 工具栏只发出保存、发布和模式切换意图；服务器权限与发布结果由 Application 处理。
 defineProps({ state: Object, actions: Object });
 </script>
 <template>
   <header>
     <div class="brand">
-      ▦ <span>成品仓 <small>空间编辑器</small></span>
+      <ToolIcon name="warehouse" width="30" height="30" /> <span>成品仓 <small>空间编辑器</small></span>
     </div>
     <span class="badge" v-if="state.workspace" id="workspace-title"
       >{{ state.workspace.projectName }} / {{ state.workspace.name }}</span

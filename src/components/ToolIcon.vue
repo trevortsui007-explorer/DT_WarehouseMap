@@ -2,6 +2,7 @@
 defineProps({ name: String });
 // 原生 SVG 复用工具栏图标；继承按钮颜色与禁用状态，不影响按钮名称。
 const paths = {
+  warehouse: 'M3 21V8l9-5 9 5v13H3z M7 21V11h10v10 M7 15h10 M7 18h10 M10 7h4',
   pan: 'M12 3v18 M3 12h18 M9 6l3-3 3 3 M9 18l3 3 3-3 M6 9l-3 3 3 3 M18 9l3 3-3 3',
   focus: 'M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5 M8 8h8v8H8z',
   copy: 'M9 9h11v11H9z M15 6V3H3v12h3',
