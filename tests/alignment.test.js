@@ -49,3 +49,16 @@ test('all alignment axes and validation preserve unaffected coordinates', () => 
   }
   expect(() => alignObjects([source], ref, 'left', -1)).toThrow();
 });
+
+test('selection alignment uses collective outer edges without an anchor', () => {
+  const objects = [box('a', 4, 5, 2, 2), box('b', -3, 9, 4, 1), box('c', 8, 0, 1, 3)];
+  const original = JSON.stringify(objects);
+  expect(alignObjects(objects, null, 'left').map(o => o.x)).toEqual([-3, -3, -3]);
+  expect(alignObjects(objects, null, 'right').map(o => o.x + o.width)).toEqual([9, 9, 9]);
+  expect(alignObjects(objects, null, 'top').map(o => o.y)).toEqual([0, 0, 0]);
+  expect(alignObjects(objects, null, 'bottom').map(o => o.y + o.depth)).toEqual([10, 10, 10]);
+  expect(alignObjects(objects, null, 'centerX').map(o => o.x + o.width / 2)).toEqual([3, 3, 3]);
+  expect(alignObjects(objects, null, 'centerY').map(o => o.y + o.depth / 2)).toEqual([5, 5, 5]);
+  expect(JSON.stringify(objects)).toBe(original);
+  expect(() => alignObjects([objects[0]], null, 'left')).toThrow('两个');
+});

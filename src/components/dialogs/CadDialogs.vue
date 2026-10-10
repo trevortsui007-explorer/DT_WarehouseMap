@@ -48,6 +48,14 @@
     <table class="shortcut-table">
       <tbody>
         <tr>
+          <th>A → L / R / T / B</th>
+          <td>打开对齐面板后：左 / 右 / 上 / 下对齐</td>
+        </tr>
+        <tr>
+          <th>A → H / V / X / Y</th>
+          <td>水平居中 / 垂直居中 / 水平等间距 / 垂直等间距；Esc 关闭</td>
+        </tr>
+        <tr>
           <th>Ctrl + Z</th>
           <td>撤销</td>
         </tr>

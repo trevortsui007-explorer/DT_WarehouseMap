@@ -1,11 +1,12 @@
 import { bounds } from './cad-geometry.js';
 // 世界轴外接边缘对齐，不额外吸附网格；只输出新坐标。
 export function alignObjects(objects, reference, mode, gap = 0) {
-  if (!objects.length || !reference) throw Error('请选择移动对象和基准对象');
+  if (objects.length < 2 && !reference) throw Error('请至少选择两个对象');
+  if (mode.startsWith('beside') && !reference) throw Error('靠边留距需要指定基准对象');
   if (!Number.isFinite(gap) || gap < 0) throw Error('净间距必须为非负数');
-  const moving = objects.filter(o => o.id !== reference.id);
+  const moving = reference ? objects.filter(o => o.id !== reference.id) : objects;
   if (!moving.length) throw Error('至少选择一个基准以外的移动对象');
-  const ref = bounds([reference]);
+  const ref = bounds(reference ? [reference] : objects);
   const modes = [
     'left',
     'right',

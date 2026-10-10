@@ -1205,3 +1205,14 @@ header .actions {
   padding: 6px 10px;
   font-size: 12px;
 }
+
+/* 图标与文字统一对齐，工具栏变窄时仍沿用原有换行布局。 */
+.edit-toolbar > button,
+.edit-toolbar .alignment-dropdown > button,
+#fit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}

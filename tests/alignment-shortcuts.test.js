@@ -1,0 +1,44 @@
+// @vitest-environment happy-dom
+import { expect, test, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+import AlignmentDialog from '../src/components/dialogs/AlignmentDialog.vue';
+test('A then direction applies once; inputs, gestures and modifiers are ignored; Esc preserves selection', async () => {
+  const actions = { canAlignShortcut: vi.fn(() => true), applyAlignment: vi.fn(() => true) };
+  const wrapper = mount(AlignmentDialog, { attachTo: document.body, props: { actions, count: 3, disabled: false } });
+  const press = async (key, extra = {}) => {
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
+    await nextTick();
+  };
+  await press('l');
+  expect(actions.applyAlignment).not.toHaveBeenCalled();
+  await press('a');
+  expect(wrapper.find('.alignment-menu').exists()).toBe(true);
+  await press('l', { repeat: true });
+  expect(actions.applyAlignment).not.toHaveBeenCalled();
+  await press('l');
+  expect(actions.applyAlignment).toHaveBeenCalledWith(null, 'left', 0.2);
+  await press('a');
+  await press('Escape');
+  expect(wrapper.find('.alignment-menu').exists()).toBe(false);
+  await press('a', { ctrlKey: true });
+  expect(wrapper.find('.alignment-menu').exists()).toBe(false);
+  actions.canAlignShortcut.mockReturnValue(false);
+  await press('a');
+  expect(wrapper.find('.alignment-menu').exists()).toBe(false);
+  actions.canAlignShortcut.mockReturnValue(true);
+  const input = document.createElement('input');
+  document.body.append(input);
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+  await nextTick();
+  expect(wrapper.find('.alignment-menu').exists()).toBe(false);
+  input.remove();
+  await wrapper.setProps({ count: 2 });
+  await press('a');
+  await press('x');
+  expect(actions.applyAlignment).toHaveBeenCalledTimes(1);
+  expect(wrapper.find('[role="alert"]').text()).toContain('3');
+  wrapper.unmount();
+  await press('a');
+  expect(actions.applyAlignment).toHaveBeenCalledTimes(1);
+});

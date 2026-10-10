@@ -427,6 +427,8 @@ export function createCadEditor(api) {
     },
     beginNodes: surface.beginNodes,
     bind: surface.bind,
+    canAlignShortcut: () =>
+      api.canEdit() && api.view() === '2d' && !drag && !marquee && !nudgeBefore && !space && !hand,
     alignmentOptions: () => editable().map(o => ({ id: o.id, name: o.name })),
     clearAlignment: () => surface.clear(),
     previewAlignment(referenceId, mode, gap) {

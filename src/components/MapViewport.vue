@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import ToolIcon from './ToolIcon.vue';
 import AlignmentDialog from './dialogs/AlignmentDialog.vue';
 // defineProps 是 script setup 编译宏；state 用于显示，actions 将操作交给 Application。
 const props = defineProps({ state: Object, actions: Object });
@@ -23,24 +24,28 @@ const editableSelection = computed(
             <option value="0">全部层汇总</option>
             <option v-for="n in 3" :key="n" :value="n">第 {{ n }} 层</option>
           </select></label
-        ><button id="fit" @click="actions.fit()">复位视角</button>
+        ><button id="fit" @click="actions.fit()"><ToolIcon name="reset" />复位视角</button>
       </div>
     </div>
     <div class="edit-toolbar">
       <span id="selection-count">{{
         state.doorId ? '已选 1 个门' : state.selection.count ? '已选 ' + state.selection.count + ' 项' : '未选择'
       }}</span>
-      <button id="pan-tool" :disabled="state.view !== '2d'" title="按住空格也可平移">平移</button>
-      <button id="focus-selection" :disabled="!state.selection.count && !state.doorId">聚焦 F</button>
-      <button id="selection-copy" :disabled="!editableSelection">复制</button
-      ><button id="selection-delete" :disabled="!editableSelection">删除</button>
-      <AlignmentDialog :actions="actions" :disabled="!editableSelection" /><button
+      <button id="pan-tool" :disabled="state.view !== '2d'" title="按住空格也可平移">
+        <ToolIcon name="pan" />平移
+      </button>
+      <button id="focus-selection" :disabled="!state.selection.count && !state.doorId">
+        <ToolIcon name="focus" />聚焦 F
+      </button>
+      <button id="selection-copy" :disabled="!editableSelection"><ToolIcon name="copy" />复制</button
+      ><button id="selection-delete" :disabled="!editableSelection"><ToolIcon name="delete" />删除</button>
+      <AlignmentDialog :actions="actions" :disabled="!editableSelection" :count="state.selection.count" /><button
         id="precise-open"
         :disabled="!editableSelection"
       >
-        精确变换</button
-      ><button id="array-open" :disabled="!editableSelection">阵列复制</button
-      ><button id="shortcut-help">快捷键 ?</button>
+        <ToolIcon name="precise" />精确变换</button
+      ><button id="array-open" :disabled="!editableSelection"><ToolIcon name="array" />阵列复制</button
+      ><button id="shortcut-help"><ToolIcon name="help" />快捷键</button>
     </div>
     <div class="canvas-wrap">
       <div id="canvas2d" :hidden="state.view !== '2d'"></div>

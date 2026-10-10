@@ -458,7 +458,7 @@ export async function createMapApplication(ui, repository, services = {}) {
   window.addEventListener(
     'beforeunload',
     event => {
-      if (resources.snapshot().busy) {
+      if (resources.snapshot().busy || ['dirty', 'saving', 'failed'].includes(resources.snapshot().settingsStatus)) {
         event.preventDefault();
         event.returnValue = '';
       }
@@ -468,6 +468,7 @@ export async function createMapApplication(ui, repository, services = {}) {
   await resources.reload();
   const commands = {
     ...layoutCommands,
+    canAlignShortcut: () => cad.canAlignShortcut(),
     alignmentOptions: () => cad.alignmentOptions(),
     previewAlignment: (...args) => cad.previewAlignment(...args),
     applyAlignment: (...args) => cad.applyAlignment(...args),
