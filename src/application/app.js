@@ -468,6 +468,12 @@ export async function createMapApplication(ui, repository, services = {}) {
   await resources.reload();
   const commands = {
     ...layoutCommands,
+    addArea: type =>
+      cad.startPlacement({ width: type === 'aisle' ? 12 : 8, depth: type === 'aisle' ? 2.5 : 5 }, position =>
+        layoutCommands.addArea(type, position)
+      ),
+    addRoom: () => cad.startPlacement({ width: 8, depth: 6 }, position => layoutCommands.addRoom(position)),
+    addFixture: () => cad.startPlacement({ width: 1, depth: 0.6 }, position => layoutCommands.addFixture(position)),
     canAlignShortcut: () => cad.canAlignShortcut(),
     alignmentOptions: () => cad.alignmentOptions(),
     previewAlignment: (...args) => cad.previewAlignment(...args),
@@ -530,6 +536,7 @@ export async function createMapApplication(ui, repository, services = {}) {
       if (persistenceBusy) return;
       cad.finishNudge();
       if (value === 'view') {
+        cad.cancelPlacement();
         persistenceBusy = true;
         publish();
         const saved = await manager.flush();
@@ -545,6 +552,7 @@ export async function createMapApplication(ui, repository, services = {}) {
     },
     // 先让 Vue 显示目标容器，再测量和渲染，避免隐藏容器产生零尺寸。
     setView(value) {
+      cad.cancelPlacement();
       view = value;
       // Vue first reveals the selected container, then the renderer measures it.
       publish();
@@ -574,6 +582,44 @@ export async function createMapApplication(ui, repository, services = {}) {
     selectSlot(id) {
       slotId = id;
       render();
+    },
+    // 跨 FG 按编码包含匹配，返回展示数据，不暴露可变的布局对象。
+    searchLocationCodes(value) {
+      const query = String(value ?? '')
+        .trim()
+        .toLowerCase();
+      if (!query) return [];
+      return model.racks.flatMap(rack =>
+        rack.slots
+          .filter(slot => slot.code.toLowerCase().includes(query))
+          .map(slot => ({
+            id: slot.id,
+            code: slot.code,
+            rackName: rack.name,
+            fgCode: rack.fgCode,
+            level: slot.level,
+            col: slot.col,
+          }))
+      );
+    },
+    // 全布局精确查找；查询只改变视图和选择，不修改布局或历史。
+    locateLocationCode(value) {
+      const code = String(value ?? '').trim();
+      if (!code) return { error: '请输入货位编码' };
+      const matches = model.racks.flatMap(rack =>
+        rack.slots.filter(slot => slot.code === code).map(slot => ({ rack, slot }))
+      );
+      if (!matches.length) return { error: '未找到该货位，请检查完整编码' };
+      if (matches.length > 1) return { error: '存在重复货位编码，请先检查布局' };
+      const { rack, slot } = matches[0];
+      cad.cancel();
+      zone = 'ALL';
+      level = slot.level;
+      cad.set([rack.id], false);
+      slotId = slot.id;
+      render();
+      cad.focus();
+      return { message: `已定位 ${code} · ${rack.name} · 第 ${slot.level} 层，第 ${slot.col} 列` };
     },
     selectArea(id, event) {
       spatial.select(id, event);

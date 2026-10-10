@@ -12,6 +12,36 @@ const props = defineProps({ state: Object, actions: Object });
 const edit = computed(() => props.state.workMode === 'edit');
 const batch = computed(() => props.state.selection.count > 1);
 const code = ref('');
+const locationQuery = ref('');
+const locationResult = ref(null);
+const locationMatches = computed(() => {
+  // 发布新展示状态时重新查询，避免切换方案或修改编码后保留旧结果。
+  if (!props.state.ready) return [];
+  return props.actions.searchLocationCodes(locationQuery.value);
+});
+function locateMatch(code) {
+  locationResult.value = props.actions.locateLocationCode(code);
+}
+function locateLocation() {
+  const query = locationQuery.value.trim().toLowerCase();
+  const exact = locationMatches.value.filter(item => item.code.toLowerCase() === query);
+  if (exact.length === 1) locateMatch(exact[0].code);
+  else if (locationMatches.value.length === 1) locateMatch(locationMatches.value[0].code);
+  else
+    locationResult.value = {
+      error: !query
+        ? '请输入货位编码'
+        : !locationMatches.value.length
+          ? '未找到符合的货位'
+          : '请从下方列表选择要定位的货位',
+    };
+}
+watch(
+  () => props.state.workspace?.workspaceId,
+  () => {
+    locationResult.value = null;
+  }
+);
 // 将当前选中货位编码同步到独立输入框，不直接双向绑定共享模型。
 watch(
   () => props.state.slot,
@@ -94,6 +124,32 @@ const elevationRows = computed(() =>
 </script>
 <template>
   <aside class="right">
+    <form class="location-search" @submit.prevent="locateLocation">
+      <label for="location-query">货位定位</label>
+      <div class="location-search-row">
+        <input
+          id="location-query"
+          v-model="locationQuery"
+          placeholder="输入全部或部分货位编码"
+          @input="locationResult = null"
+        />
+        <button type="submit" :disabled="!state.ready">定位</button>
+      </div>
+      <template v-if="locationQuery.trim()">
+        <p class="muted">匹配 {{ locationMatches.length }} 个货位，点击结果定位</p>
+        <ul v-if="locationMatches.length" class="location-matches" aria-label="货位查询结果">
+          <li v-for="item in locationMatches" :key="item.id">
+            <button type="button" @click="locateMatch(item.code)">
+              <strong>{{ item.code }}</strong>
+              <small>{{ item.rackName }} · {{ item.fgCode }} · {{ item.level }} 层 {{ item.col }} 列</small>
+            </button>
+          </li>
+        </ul>
+      </template>
+      <p v-if="locationResult" role="status" :class="{ danger: locationResult.error }">
+        {{ locationResult.error || locationResult.message }}
+      </p>
+    </form>
     <div id="batch-inspector" v-if="batch">
       <div class="eyebrow">SELECTION / 多选</div>
       <h2 id="batch-count">已选择 {{ state.selection.count }} 个对象</h2>
@@ -283,3 +339,55 @@ const elevationRows = computed(() =>
     </div>
   </aside>
 </template>
+<style scoped>
+.location-matches {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.location-matches li + li {
+  margin-top: 6px;
+}
+.location-matches button {
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.location-matches strong,
+.location-matches small {
+  display: block;
+}
+.location-matches small {
+  margin-top: 4px;
+  color: #637f8d;
+}
+.location-search {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #dbe5ed;
+}
+.location-search > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.location-search-row {
+  display: flex;
+  gap: 8px;
+}
+.location-search-row input {
+  min-width: 0;
+  flex: 1;
+  width: 0;
+}
+.location-search-row button {
+  flex-shrink: 0;
+}
+.location-search p {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+</style>

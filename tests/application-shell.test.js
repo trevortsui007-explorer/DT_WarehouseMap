@@ -143,11 +143,54 @@ const key = async (value, options = {}) => {
 };
 const saved = () => JSON.parse(localStorage.getItem(STORE_KEY)).current;
 
+test('location query selects and focuses a slot in view mode without changing layout', async () => {
+  await start();
+  const before = JSON.stringify(saved());
+  const rack = saved().racks[0];
+  const slot = rack.slots.at(-1);
+  await wrapper.get('#location-query').setValue('  ' + slot.code + '  ');
+  await wrapper.get('.location-search').trigger('submit');
+  await flushPromises();
+  expect(wrapper.get('#location-code').element.value).toBe(slot.code);
+  expect(wrapper.get('.location-search [role="status"]').text()).toContain('已定位');
+  expect(wrapper.get('#undo').element.disabled).toBe(true);
+  expect(JSON.stringify(saved())).toBe(before);
+  await wrapper.get('#location-query').setValue('NOT-A-LOCATION');
+  await wrapper.get('.location-search').trigger('submit');
+  expect(wrapper.get('.location-search [role="status"]').text()).toContain('未找到');
+  expect(wrapper.get('#location-code').element.value).toBe(slot.code);
+});
+
+test('location query lists case-insensitive partial matches and locates a clicked result', async () => {
+  await start();
+  const before = JSON.stringify(saved());
+  const query = saved().racks[0].slots[0].code.slice(0, 4).toLowerCase();
+  const expected = saved()
+    .racks.flatMap(rack => rack.slots)
+    .filter(slot => slot.code.toLowerCase().includes(query));
+  await wrapper.get('#location-query').setValue(query);
+  expect(wrapper.findAll('.location-matches li')).toHaveLength(expected.length);
+  await wrapper.get('.location-search').trigger('submit');
+  expect(wrapper.get('.location-search [role="status"]').text()).toContain('请从下方列表选择');
+  await wrapper.findAll('.location-matches button').at(-1).trigger('click');
+  await flushPromises();
+  expect(wrapper.get('#location-code').element.value).toBe(expected.at(-1).code);
+  expect(JSON.stringify(saved())).toBe(before);
+  await wrapper.get('#location-query').setValue('');
+  expect(wrapper.find('.location-matches').exists()).toBe(false);
+});
+
 test('room UI creates owned doors, moves shell without racks and renders in both views', async () => {
   await start();
   await edit();
   const add = wrapper.findAll('button').find(button => button.text() === '＋ 房间');
   await add.trigger('click');
+  expect(wrapper.find('#area-form').exists()).toBe(false);
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  await nextTick();
+  expect(wrapper.find('#area-form').exists()).toBe(false);
+  await add.trigger('click');
+  await wrapper.get('#canvas2d').trigger('click', { clientX: 120, clientY: 120, button: 0 });
   await wrapper.get('#door-add').trigger('click');
   await vi.advanceTimersByTimeAsync(1300);
   const before = saved();
@@ -598,6 +641,7 @@ test('fixture and general-area UI retains CAD history, colors and measured dimen
     .findAll('button')
     .find(button => button.text() === '＋ 固定设施')
     .trigger('click');
+  await wrapper.get('#canvas2d').trigger('click', { clientX: 120, clientY: 120, button: 0 });
   await wrapper.get('#area-form input[name="height"]').setValue('3');
   await wrapper.get('#area-form').trigger('submit');
   await vi.advanceTimersByTimeAsync(1300);
@@ -630,6 +674,7 @@ test('fixture and general-area UI retains CAD history, colors and measured dimen
     .findAll('button')
     .find(button => button.text() === '＋ 通用区域')
     .trigger('click');
+  await wrapper.get('#canvas2d').trigger('click', { clientX: 180, clientY: 150, button: 0 });
   await wrapper.get('#area-form select[name="color"]').setValue('#d9edf9');
   await wrapper.get('#area-form').trigger('submit');
   await vi.advanceTimersByTimeAsync(1300);
@@ -743,6 +788,7 @@ test('project manager creates, copies and switches independent maps with real re
     .findAll('button')
     .find(button => button.text() === '＋ 房间')
     .trigger('click');
+  await wrapper.get('#canvas2d').trigger('click', { clientX: 120, clientY: 120, button: 0 });
   await wrapper.get('#layout-open').trigger('click');
   await flushPromises();
   const scheme = wrapper.get('input[aria-label="新方案名称"]');
@@ -759,6 +805,7 @@ test('project manager creates, copies and switches independent maps with real re
     .findAll('button')
     .find(button => button.text() === '＋ 房间')
     .trigger('click');
+  await wrapper.get('#canvas2d').trigger('click', { clientX: 120, clientY: 120, button: 0 });
   await wrapper.get('#layout-open').trigger('click');
   await flushPromises();
   const original = wrapper.findAll('[data-workspace]').find(row => row.text().includes('现状方案'));

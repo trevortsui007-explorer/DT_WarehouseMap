@@ -17,6 +17,7 @@ import { draggedDoorOffset } from '../../core/doors/doors.js';
 export function createCadEditor(api) {
   const $ = s => document.querySelector(s),
     unit = api.unit;
+  let placement = null;
   let drag = null,
     marquee = null,
     space = false,
@@ -57,6 +58,8 @@ export function createCadEditor(api) {
   }
   // 撤销未提交的微调并清除手势预览；cancelling 防止 stopDragging 触发意外提交。
   function cancel() {
+    placement = null;
+    api.host.style.cursor = '';
     if (nudgeBefore) {
       api.replace(nudgeBefore);
       nudgeBefore = null;
@@ -302,6 +305,12 @@ export function createCadEditor(api) {
     const mod = e.ctrlKey || e.metaKey,
       key = e.key.toLowerCase();
     if (dialog()) return;
+    if (placement && key === 'escape') {
+      e.preventDefault();
+      cancel();
+      return;
+    }
+    if (placement) return;
     if (mod && key === 's') {
       e.preventDefault();
       finishNudge();
@@ -414,6 +423,34 @@ export function createCadEditor(api) {
   );
   // End a key-repeat command before any subsequent pointer command can enter history.
   window.addEventListener('pointerdown', finishNudge, { capture: true, signal: api.signal });
+  // 放置模式拦截画布手势，不让框选、对象拖动和单击命中抢走新增操作。
+  function placementPointer(event) {
+    if (!placement) return;
+    if (!api.canEdit() || api.view() !== '2d') {
+      cancel();
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    api.stage.setPointersPositions(event);
+    const p = api.stage.getPointerPosition();
+    if (!p) return;
+    const snap = value => (event.altKey ? value : Math.round(value * 2) / 2);
+    const position = {
+      x: snap((p.x - api.stage.x()) / api.stage.scaleX() / unit),
+      y: snap((p.y - api.stage.y()) / api.stage.scaleY() / unit),
+    };
+    surface.preview([{ ...placement.shape, ...position, rotation: 0 }]);
+    if (event.type === 'click' && event.button === 0) {
+      const pending = placement;
+      placement = null;
+      surface.clear();
+      api.host.style.cursor = '';
+      pending.commit(position);
+    }
+  }
+  for (const type of ['pointermove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'])
+    api.host.addEventListener(type, placementPointer, { capture: true, signal: api.signal });
   api.host.tabIndex = 0;
   api.host.addEventListener('pointerdown', () => api.host.focus({ preventScroll: true }));
   return {
@@ -428,7 +465,7 @@ export function createCadEditor(api) {
     beginNodes: surface.beginNodes,
     bind: surface.bind,
     canAlignShortcut: () =>
-      api.canEdit() && api.view() === '2d' && !drag && !marquee && !nudgeBefore && !space && !hand,
+      api.canEdit() && api.view() === '2d' && !placement && !drag && !marquee && !nudgeBefore && !space && !hand,
     alignmentOptions: () => editable().map(o => ({ id: o.id, name: o.name })),
     clearAlignment: () => surface.clear(),
     previewAlignment(referenceId, mode, gap) {
@@ -457,6 +494,20 @@ export function createCadEditor(api) {
             { x: next.x, y: next.y }
           );
       });
+    },
+    cancelPlacement() {
+      if (placement) cancel();
+    },
+    startPlacement(shape, commit) {
+      if (!api.canEdit() || api.view() !== '2d') {
+        api.toast('请在二维编辑模式放置对象');
+        return;
+      }
+      cancel();
+      placement = { shape, commit };
+      api.host.style.cursor = 'crosshair';
+      api.host.focus({ preventScroll: true });
+      api.toast('移动鼠标预览，单击放置；Esc 取消，Alt 暂停吸附');
     },
     bindResize: surface.bindResize,
     bindDoor: surface.bindDoor,

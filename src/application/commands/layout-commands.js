@@ -31,15 +31,15 @@ export function createLayoutCommands(api) {
       });
     },
     // 创建具有新身份的货架和货位；查看全部 FG 时使用 FG01 作为新增归属。
-    addFixture() {
+    addFixture(position) {
       execute('CreateFixture', () => {
         const b = api.model().boundary;
         const fixture = {
           id: uid(),
           name: '固定设施',
           type: 'cabinet',
-          x: b.x + 2,
-          y: b.y + 2,
+          x: position?.x ?? b.x + 2,
+          y: position?.y ?? b.y + 2,
           width: 1,
           depth: 0.6,
           height: 2,
@@ -49,14 +49,14 @@ export function createLayoutCommands(api) {
         cad.set([fixture.id], false);
       });
     },
-    addRoom() {
+    addRoom(position) {
       execute('CreateRoom', () => {
         const b = api.model().boundary;
         const room = {
           id: uid(),
           name: '房间 ' + (api.model().rooms.length + 1),
-          x: b.x + 2,
-          y: b.y + 2,
+          x: position?.x ?? b.x + 2,
+          y: position?.y ?? b.y + 2,
           width: 8,
           depth: 6,
           rotation: 0,
@@ -152,15 +152,15 @@ export function createLayoutCommands(api) {
       });
     },
     // 按边界计算默认位置并新增物理区域，虚拟库位通过独立绑定命令维护。
-    addArea(type) {
+    addArea(type, position) {
       execute('CreateArea', () => {
         const boundary = api.model().boundary;
         const area = {
           id: uid(),
           type,
           name: AREA_TYPES[type].label + ' ' + (api.model().areas.filter(item => item.type === type).length + 1),
-          x: boundary.x + 2,
-          y: boundary.y + boundary.depth - 7,
+          x: position?.x ?? boundary.x + 2,
+          y: position?.y ?? boundary.y + boundary.depth - 7,
           width: type === 'aisle' ? 12 : 8,
           depth: type === 'aisle' ? 2.5 : 5,
           rotation: 0,
