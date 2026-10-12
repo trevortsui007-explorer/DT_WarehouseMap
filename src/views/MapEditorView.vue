@@ -7,6 +7,7 @@ import MapViewport from '../components/MapViewport.vue';
 import PropertyPanel from '../components/properties/PropertyPanel.vue';
 import CadDialogs from '../components/dialogs/CadDialogs.vue';
 import LayoutDialog from '../components/dialogs/LayoutDialog.vue';
+import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
 // Only presentation snapshots enter Vue. The editable model remains plain application data.
 // shallowRef 只跟踪快照引用替换，不把内部布局几何递归转换为 Vue 响应式对象。
@@ -35,6 +36,7 @@ const state = shallowRef({
   layout: { history: [], canApply: false, importSummary: '', layoutError: '' },
 });
 const actions = shallowRef({});
+const confirmation = shallowRef();
 let application;
 let unmounted = false;
 // DOM 挂载后异步组装应用；启动失败显示可重试错误，不替换成示例 Runtime。
@@ -43,6 +45,7 @@ async function start() {
   state.value = { ...state.value, loadError: '', ready: false };
   try {
     application = await bootstrapMap({
+      confirm: options => confirmation.value.ask(options),
       isDisposed: () => unmounted,
       patch: patch => {
         if (unmounted) return;
@@ -92,4 +95,5 @@ onBeforeUnmount(() => {
     <LayoutDialog :state="state" :actions="actions" />
     <CadDialogs />
   </div>
+  <ConfirmDialog ref="confirmation" />
 </template>

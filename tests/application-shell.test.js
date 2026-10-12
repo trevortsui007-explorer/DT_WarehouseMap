@@ -143,6 +143,15 @@ const key = async (value, options = {}) => {
 };
 const saved = () => JSON.parse(localStorage.getItem(STORE_KEY)).current;
 
+test('Ctrl+S saves locally without triggering the server draft button', async () => {
+  await start();
+  await edit();
+  const serverButton = vi.spyOn(wrapper.get('#save').element, 'click');
+  await key('s', { ctrlKey: true });
+  expect(serverButton).not.toHaveBeenCalled();
+  expect(wrapper.text()).toContain('本机草稿已保存；未上传服务器');
+});
+
 test('location query selects and focuses a slot in view mode without changing layout', async () => {
   await start();
   const before = JSON.stringify(saved());
@@ -159,6 +168,15 @@ test('location query selects and focuses a slot in view mode without changing la
   await wrapper.get('.location-search').trigger('submit');
   expect(wrapper.get('.location-search [role="status"]').text()).toContain('未找到');
   expect(wrapper.get('#location-code').element.value).toBe(slot.code);
+});
+
+test('Ctrl+S saves locally without triggering the server draft button', async () => {
+  await start();
+  await edit();
+  const serverButton = vi.spyOn(wrapper.get('#save').element, 'click');
+  await key('s', { ctrlKey: true });
+  expect(serverButton).not.toHaveBeenCalled();
+  expect(wrapper.text()).toContain('本机草稿已保存；未上传服务器');
 });
 
 test('location query lists case-insensitive partial matches and locates a clicked result', async () => {

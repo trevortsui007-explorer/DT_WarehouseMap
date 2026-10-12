@@ -227,6 +227,10 @@ export async function createMapApplication(ui, repository, services = {}) {
     three.resize();
   }
   const cad = createCadEditor({
+    // Ctrl+S 与自动保存只落本机，服务器保存和发布必须显式触发。
+    saveLocal: async () => {
+      if (canEdit() && (await manager.save('手动保存本机草稿'))) toast('本机草稿已保存；未上传服务器');
+    },
     stage,
     unit,
     host,
@@ -653,7 +657,15 @@ export async function createMapApplication(ui, repository, services = {}) {
         if (await manager.save('手动保存本地方案')) toast('本地方案已保存');
       } else if (await remoteLifecycle.save()) toast('服务器草稿已保存');
     },
-    retryRemote: () => remoteLifecycle.initialize(),
+    async retryRemote() {
+      const refreshed = await remoteLifecycle.initialize();
+      if (refreshed) toast('服务状态已刷新，当前画布保持不变');
+      else if (refreshed === false) toast('刷新失败：' + (remoteLifecycle.state.error?.message || '请稍后重试'));
+      else
+        toast(
+          remoteLifecycle.state.status === 'unconfigured' ? '尚未配置地图服务' : '服务正在处理其他操作，请稍后刷新'
+        );
+    },
     // 冲突时仅保留本机工作，不尝试合并或覆盖服务器草稿。
     async keepLocalDraft() {
       cad.finishNudge();
@@ -661,11 +673,55 @@ export async function createMapApplication(ui, repository, services = {}) {
     },
     // 重新载入远程草稿前确认替换，实际备份与原子替换由布局管理器完成。
     async loadServerDraft() {
-      if (!canEdit() || !confirm('载入服务器草稿将替换画面；当前本机布局会先保存为历史备份。是否继续？')) return;
+      if (
+        !canEdit() ||
+        !(await ui.confirm?.({
+          title: '载入服务器草稿',
+          icon: 'draft',
+          message: '载入服务器草稿将替换当前画面，是否继续？',
+          note: '当前本机布局会先保存为历史备份，服务器草稿不会被此操作修改。',
+          confirmText: '确认载入草稿',
+        })) ||
+        disposed ||
+        !canEdit()
+      )
+        return;
       cad.finishNudge();
       return remoteLifecycle.loadDraft();
     },
-    publishLayout: () => remoteLifecycle.publish(),
+    async publishLayout() {
+      if (
+        !canEdit() ||
+        !(await ui.confirm?.({
+          title: '发布正式版本',
+          icon: 'publish',
+          message: '将已保存的服务器草稿发布为新的正式版本，是否继续？',
+          note: '尚未保存的本机修改不会自动上传。已有正式版本会保留，供历史查询。',
+          confirmText: '确认发布',
+        })) ||
+        disposed ||
+        !canEdit()
+      )
+        return;
+      return remoteLifecycle.publish();
+    },
+    async loadPublishedLayout() {
+      if (
+        !canEdit() ||
+        !(await ui.confirm?.({
+          title: '载入正式版本',
+          icon: 'published',
+          message: '载入当前正式版本将替换画面，是否继续？',
+          note: '当前本机布局会先备份。载入后，如需保存到服务器，请先载入服务器草稿建立修订基线。',
+          confirmText: '确认载入正式版',
+        })) ||
+        disposed ||
+        !canEdit()
+      )
+        return;
+      cad.finishNudge();
+      return remoteLifecycle.loadPublished();
+    },
     export: () => exportLayout(model),
     openLayout: manager.open,
     closeLayout: manager.close,

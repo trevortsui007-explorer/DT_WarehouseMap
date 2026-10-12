@@ -314,7 +314,7 @@ export function createCadEditor(api) {
     if (mod && key === 's') {
       e.preventDefault();
       finishNudge();
-      $('#save').click();
+      void api.saveLocal?.();
       return;
     }
     if (isInput(e)) return;
