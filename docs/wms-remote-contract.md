@@ -1,8 +1,12 @@
 # WMS Map — C# API / SQL Server / Runtime 对接契约
 
-状态：前端 Repository、生命周期和 SignalR Adapter 已实现；仓库内没有 C# 后端项目，以下为待双方确认并实现的契约，未执行任何 SQL / DDL。
+当前实现：运行后端已迁入 `D:/Codes/WMS_FG/WMS-Map`，通过 Nancy 双宿主入口提供草稿与正式版本 API；独立宿主 net48，共享业务源码验证 net461。旧 `backend/` 原型已移除，WMS_FG 是唯一后端维护入口，独立宿主默认端口为 31175。已完成真实 SQL 草稿/发布联调，具体范围、限制和启动方法见 [第一阶段联调说明](phase1-backend-testing.md)。下文中的关系投影、占用检查与实时契约仍属于后续设计。
+
+后续决策覆盖本文旧约定：Ctrl+S 仅写 IndexedDB，显式“保存草稿”才写服务器；一张物理地图覆盖 FG01/FG02 两个业务仓库；地图不维护 WMS 库位主数据；时间字段使用 SavedDt/PublishedDt；当前前端 schema 已为 v6。完整多仓绑定契约和前端适配将在下一阶段同步，不能将本文旧单仓/v4 约定视作已实现后端能力。
 
 SignalR Adapter 面向 ASP.NET Core SignalR；如果现有 WMS 是旧版 ASP.NET SignalR，需确认并替换基础设施 Adapter，不能假设两种 Hub 协议兼容。
+
+当前地图后端已改为 Framework 4.8，没有 ASP.NET Core Hub；第一期仍按快照刷新实现，不能直接启用现有 Core SignalR Adapter。推送能力后续另行对齐。
 
 ## 配置与身份
 

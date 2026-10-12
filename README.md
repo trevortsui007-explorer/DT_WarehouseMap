@@ -1,8 +1,12 @@
 # 成品仓地图编辑器原型
 
-仅在本机运行。采用 Vue 3 + Vite + JavaScript ES Modules、Konva.js、Three.js；已提供 C# REST 与 SignalR 适配，但尚未配置真实服务。工程规范见 [Engineering Constitution](docs/WMS_Map_Engineering_Constitution.md)，已完成 Phase 0–10 的前端架构与 Adapter；实际 C# / WMS 服务尚待对接。最新记录见 [Phase 8–10](docs/phase-8-10-validation.md)，配置与后端设计见 [Remote Contract](docs/wms-remote-contract.md)。
+后端统一维护于 [WMS_FG 仓库](https://github.com/trevortsui007-explorer/WMS-HU-Model) 的 WMS-Map，使用 WMS.Standalone.sln 启动 .NET Framework 4.8 / Nancy 独立宿主。本仓库已移除旧 backend 原型；数据库脚本、后端测试和服务入口均以 WMS_FG 为准。
+
+前端采用 Vue 3 + Vite、Konva.js、Three.js。当前已完成地图草稿初始化、并发保存、正式版本发布与回读，以及本机方案上传和服务器布局打开。当前阶段为 GEOMETRY_ONLY；真实 WMS Location 绑定、库存/HU、SignalR 和力软身份权限接入仍待完成。当前状态见 [第一阶段联调说明](docs/phase1-backend-testing.md)，旧 Phase 0–10 文档保留为历史记录。
 
 ## 启动
+
+先在 WMS_FG 打开 WMS.Standalone.sln 并启动独立宿主，默认 http://localhost:31175/。前端开发代理使用 5173 → /wms-api → 31175；数据库连接保存在后端未提交的 App.local.config。
 
 使用 Node.js 22.12+（本轮验证环境为 24.14.1）。首次运行 `npm install`，然后 `npm run dev`，打开 http://127.0.0.1:5173 。Vue、Konva、Three 等通过 npm 安装，由 Vite 提供或打包，运行时不需要访问 CDN。
 
@@ -66,7 +70,7 @@ DOM 测试使用真实 Konva 场景和 Three 几何对象，模拟 Canvas 绘制
 
 拖动默认吸附 0.5 米网格，并捕捉角点、外包矩形边缘与中心线；辅助线提示对齐。Alt 临时关闭吸附。旋转对象的边缘对齐采用世界坐标外包矩形，角点使用实际旋转后的坐标。
 
-Ctrl+Z 撤销，Ctrl+Shift+Z / Ctrl+Y 重做，Ctrl+S 保存服务器草稿，Ctrl+D 复制，Delete 删除并确认，方向键移动 0.1 米，Shift+方向键移动 1 米，Q/E 绕组合中心旋转 -90/+90 度，F 聚焦，Home 全仓适配，Esc 取消拖动或清除选择，? / F1 打开帮助。输入框保留文本编辑行为；仅全局保存仍生效。Delete 不删除货位或仓库边界。连续按键移动、一次多选拖动或阵列生成各只记录一次撤销。
+Ctrl+Z 撤销，Ctrl+Shift+Z / Ctrl+Y 重做，Ctrl+S 保存本机草稿，Ctrl+D 复制，Delete 删除并确认，方向键移动 0.1 米，Shift+方向键移动 1 米，Q/E 绕组合中心旋转 -90/+90 度，F 聚焦，Home 全仓适配，Esc 取消拖动或清除选择，? / F1 打开帮助。输入框保留文本编辑行为；仅全局保存仍生效。Delete 不删除货位或仓库边界。连续按键移动、一次多选拖动或阵列生成各只记录一次撤销。
 
 精确变换支持 X/Y 位移、任意角度和组合中心或自定义世界坐标基点。先旋转再平移。阵列行列总数包含原件，沿世界 X/Y 方向以选择组合的外包矩形加净间距排列，支持画布预览；每次最多新增 200 个对象。复制货架保留 FG 和结构，生成新货位身份与编码，运行态仍独立查询 WMS。三维新增工具只开放查看与聚焦。
 
@@ -86,7 +90,7 @@ cad-geometry.js 是可单独测试的几何和复制逻辑；cad-editor.js 管�
 
 布局管理支持本工具 v1/v2/v3/v4 JSON 文件，最大 5 MB，校验唯一 ID、货位编码、层列完整性、FG/空间、区域、门等。先显示摘要，再确认整体替换，不执行部分合并；不包含运行态库存。空间越界提示不阻止导入。导入/恢复前原子写入当前备份，持久化失败不会替换当前画面。
 
-编辑停止 1.2 秒后自动保存；方向键连续移动结束后才形成一次保存候选。Ctrl+S 先保存本机，再尝试更新服务器草稿；不创建正式版本。切换查看模式和页面离开前尝试落盘；失败会提示导出。常规历史保留最近 20 条，另保留全部迁移备份；每次替换原子保存替换前内容。Repository 将数据写入 Dexie 数据库 wms-map-workspace（版本 2），使用 drafts、history、snapshots、meta。localStorage 仅用于偏好。旧数据经解析、Schema 转换、校验、事务写入及读回验证后才清理；失败保留原文并提示重试，未知键不清理。页面重载恢复最近一次保存，不跨设备同步，也不提供多人并发编辑。
+编辑停止 1.2 秒后自动保存；方向键连续移动结束后才形成一次保存候选。Ctrl+S 只保存本机 IndexedDB；点击保存服务器草稿才同步数据库，点击发布才创建正式版本。切换查看模式和页面离开前尝试落盘；失败会提示导出。常规历史保留最近 20 条，另保留全部迁移备份；每次替换原子保存替换前内容。Repository 将数据写入 Dexie 数据库 wms-map-workspace（版本 2），使用 drafts、history、snapshots、meta。localStorage 仅用于偏好。旧数据经解析、Schema 转换、校验、事务写入及读回验证后才清理；失败保留原文并提示重试，未知键不清理。页面重载恢复最近一次保存，不跨设备同步，也不提供多人并发编辑。
 
 历史恢复先预览，再确认替换；确认时又保留当前版本。导入/恢复会清空本次撤销栈，跨版本恢复使用历史列表。浏览器清理数据会删除本机记录，请定期导出。备份存储失败会保留内存布局并显示失败状态；测试包括存储额度异常的原子性、重复编码拒绝、版本上限。
 
@@ -102,3 +106,7 @@ Local Draft 在 IndexedDB；Server Draft 通过 PUT 保存并检查 draftRevisio
 
 物理区域可绑定多个 WMS Virtual Location，所有启用绑定均显示。2D 逐行展示，3D 沿较长轴等分视觉区域；不代表真实隔断。绑定进入布局历史，数量仅在独立 Runtime 中汇总。详见 [Area Runtime Patch](docs/phase-8.5-area-runtime-contract.md)。
 
+
+## 第一阶段后端联调
+
+实际后端维护于 D:/Codes/WMS_FG/WMS-Map；旧 backend 原型已移除。启动方式、API、测试记录及阶段边界见 [第一阶段联调说明](docs/phase1-backend-testing.md)。
