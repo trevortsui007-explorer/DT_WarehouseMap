@@ -2,6 +2,7 @@ import { migrateWorkspaceCatalog } from './migrations/v4.js';
 import { workspaceName, blankLayout } from '../../../core/workspace/projects.js';
 import { emptyResources, projectBackup } from '../../../core/workspace/resources.js';
 import { draftRecord } from './schema.js';
+import { validateLayout } from '../../../core/model/layout-validation.js';
 
 // 目录和方案正文在同一数据库事务中创建，方案仓库始终绑定不可变 workspaceId。
 export function createWorkspaceCatalog(db, root) {
@@ -61,6 +62,51 @@ export function createWorkspaceCatalog(db, root) {
     ready,
     info,
     repository: id => root.forWorkspace(id),
+    // 身份切换、原方案恢复包、修订基线和工作区标记必须一起落盘。
+    async connectRemote(id, scope, uploaded, draft, pendingKey) {
+      await ready();
+      const prefix = id === 'main' ? 'remote:' : 'remote-workspace:' + id + ':';
+      await db.transaction(
+        'rw',
+        db.workspaces,
+        db.projects,
+        db.drafts,
+        db.localResources,
+        db.projectBackups,
+        db.meta,
+        async () => {
+          const workspace = await db.workspaces.get(id);
+          const previous = await db.drafts.get(id);
+          if (!workspace || !previous || workspace.remoteEligible) throw Error('本机工作区状态已变化，请重新打开方案');
+          if (previous.data.layoutId !== uploaded.layoutId) throw Error('本机布局身份已变化，未连接服务器');
+          const project = await db.projects.get(workspace.projectId);
+          const resources = (await db.localResources.get(id))?.data || emptyResources();
+          await db.projectBackups.add({
+            id: crypto.randomUUID(),
+            layoutId: id,
+            at: new Date().toISOString(),
+            data: projectBackup(previous.data, resources, { projectName: project.name, schemeName: workspace.name }),
+          });
+          const layout = validateLayout({ ...previous.data, layoutCode: uploaded.layoutCode });
+          await db.drafts.put(draftRecord(layout, new Date().toISOString(), id));
+          await db.workspaces.update(id, {
+            remoteEligible: true,
+            remoteScope: scope,
+            remoteLayoutCode: uploaded.layoutCode,
+          });
+          await db.meta.put({
+            key: prefix + scope + ':' + uploaded.layoutCode,
+            value: {
+              draftRevision: draft.draftRevision,
+              basedOnPublishedVersion: draft.basedOnPublishedVersion,
+              synced: JSON.stringify(uploaded),
+              pendingPublication: null,
+            },
+          });
+          if (pendingKey) await db.meta.delete(prefix + pendingKey);
+        }
+      );
+    },
     async list() {
       await ready();
       const projects = await db.projects.toArray(),

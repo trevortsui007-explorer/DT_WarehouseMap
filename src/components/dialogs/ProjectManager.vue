@@ -74,7 +74,7 @@ watch(
           </div>
           <small
             >{{ new Date(scheme.updatedAt).toLocaleString('zh-CN', { hour12: false }) }} ·
-            {{ scheme.remoteEligible ? '原工作区' : '本地方案' }}</small
+            {{ scheme.remoteEligible ? '服务器布局' : '本地方案' }} {{ scheme.remoteLayoutCode || '' }}</small
           >
         </div>
         <button
@@ -130,6 +130,22 @@ watch(
         <div class="new-map-submit"><button class="manager-orange" :disabled="busy">新建地图</button></div>
       </form>
     </details>
-    <p class="manager-local-note">新项目与方案仅保存在本机，切换前自动保存；云端共用须由服务器正式发布。</p>
+    <section class="scheme-actions-card">
+      <h3>服务器布局</h3>
+      <p class="muted">上传的草稿可跨设备读取；打开已有本机工作区不会自动覆盖本机编辑，可再点击载入服务器草稿。</p>
+      <button :disabled="busy || !state.workspaceCatalog.remoteConfigured" @click="actions.refreshServerLayouts()">
+        刷新服务器布局
+      </button>
+      <div v-for="layout in state.workspaceCatalog.serverLayouts" :key="layout.layoutCode" class="scheme-card">
+        <span
+          >{{ layout.layoutName }} · {{ layout.layoutCode }} ·
+          {{ layout.publishedVersion == null ? '尚未发布' : '正式版本 ' + layout.publishedVersion }}</span
+        >
+        <button :disabled="busy" @click="actions.openServerLayout(layout.layoutCode)">打开服务器草稿</button>
+      </div>
+    </section>
+    <p class="manager-local-note">
+      新项目与方案先保存在本机；编辑模式下使用“上传为服务器草稿”建立共享布局，然后保存、发布。
+    </p>
   </section>
 </template>

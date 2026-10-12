@@ -167,7 +167,7 @@ test('failed new-project transaction creates neither directory nor partial draft
   expect(await db.drafts.count()).toBe(1);
 });
 
-async function controllerHarness() {
+async function controllerHarness(overrides = {}) {
   const env = await environment();
   await env.catalog.ready();
   const patches = [],
@@ -193,11 +193,46 @@ async function controllerHarness() {
   const controller = await createWorkspaceController({
     ui: { patch: p => patches.push(p), afterUpdate: cb => cb() },
     root: env.root,
-    services: { remote: { server: true }, layoutCode: null, warehouseCode: 'W' },
+    services: { remote: { server: true }, layoutCode: null, warehouseCode: 'W', ...overrides },
     createApplication,
   });
   return { ...env, controller, sessions, patches, createApplication };
 }
+
+test('upload remounts the same workspace with remote enabled; reopening server layout retains local work', async () => {
+  const remote = {
+    getPublishedLayout: vi.fn(async code => ({ layoutCode: code, exists: false })),
+    initializeLayout: vi.fn(async code => ({ layoutCode: code, draftRevision: 0, basedOnPublishedVersion: null })),
+  };
+  const h = await controllerHarness({ remote, remoteScope: 'server' });
+  const id = await h.catalog.copy('main', '上传方案');
+  await h.controller.openWorkspace(id);
+  const before = (await h.catalog.repository(id).load()).model;
+  expect(await h.controller.uploadWorkspace('NEW_MAP')).toBe(true);
+  expect(h.sessions.at(-1).services.remote).toBe(remote);
+  expect(h.sessions.at(-1).services.initialLayout.layoutId).toBe(before.layoutId);
+  expect(h.sessions.at(-1).services.layoutCode).toBe('NEW_MAP');
+  await h.controller.openWorkspace('main');
+  expect(await h.controller.openServerLayout('NEW_MAP')).toBe(true);
+  expect(await h.catalog.last()).toBe(id);
+  expect(await h.db.workspaces.count()).toBe(2);
+});
+
+test('another browser can open server draft into a new bound workspace without overwriting its original', async () => {
+  const layout = blankLayout('远程布局');
+  layout.layoutCode = 'REMOTE';
+  const remote = {
+    getServerDraft: vi.fn(async () => ({ layoutCode: 'REMOTE', draftRevision: 7, basedOnPublishedVersion: 2, layout })),
+  };
+  const h = await controllerHarness({ remote, remoteScope: 'server', layoutCode: null });
+  const before = await h.root.load();
+  expect(await h.controller.openServerLayout('REMOTE')).toBe(true);
+  expect(h.sessions.at(-1).services.initialLayout).toEqual(layout);
+  expect(await h.root.load()).toEqual(before);
+  expect(await h.catalog.repository(await h.catalog.last()).getRemoteState('server:REMOTE')).toMatchObject({
+    draftRevision: 7,
+  });
+});
 
 test('switch waits for pending resources, drops late callbacks, resets remote capability and restores last selection', async () => {
   const h = await controllerHarness(),

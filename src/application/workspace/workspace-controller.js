@@ -1,4 +1,7 @@
 import { verifyUnderlay } from '../../infrastructure/import-export/underlay-image.js';
+import { uploadWorkspace } from './upload-workspace.js';
+import { validateLayout } from '../../core/model/layout-validation.js';
+import { emptyResources } from '../../core/workspace/resources.js';
 
 // 每次打开创建独立应用会话和固定分区仓库；epoch 使旧会话迟到通知失效。
 export async function createWorkspaceController({ ui, root, services, createApplication }) {
@@ -9,7 +12,7 @@ export async function createWorkspaceController({ ui, root, services, createAppl
     epoch = 0,
     busy = false,
     disposed = false;
-  const catalogState = { projects: [], error: '', busy: false };
+  const catalogState = { projects: [], error: '', busy: false, serverLayouts: [], remoteConfigured: !!services.remote };
   const publish = () => {
     if (!disposed) ui.patch({ workspaceCatalog: { ...catalogState, busy } });
   };
@@ -22,8 +25,15 @@ export async function createWorkspaceController({ ui, root, services, createAppl
       repo = catalog.repository(id);
     const saved = await repo.load();
     if (!saved) throw Error('目标方案草稿缺失，当前工作已保留');
-    if (info.remoteEligible && services.layoutCode && saved.model.layoutCode !== services.layoutCode)
+    if (
+      info.remoteEligible &&
+      !info.remoteLayoutCode &&
+      services.layoutCode &&
+      saved.model.layoutCode !== services.layoutCode
+    )
       throw Error('原工作区与配置的云端布局不一致，请核对服务配置');
+    if (info.remoteScope && info.remoteScope !== services.remoteScope)
+      throw Error('当前方案连接的服务与配置不同，请恢复原服务地址');
     // 校验目标的历史及资源再销毁当前画面，避免打开半损坏工作区。
     await repo.history();
     const resources = await repo.loadResources();
@@ -55,7 +65,7 @@ export async function createWorkspaceController({ ui, root, services, createAppl
       ...services,
       // 新分支不继承全局配置的写入目的地或并发修订；已绑定仓库仍可读取运行态。
       remote: bundle.info.remoteEligible ? services.remote : null,
-      layoutCode: bundle.info.remoteEligible ? services.layoutCode : null,
+      layoutCode: bundle.info.remoteEligible ? bundle.info.remoteLayoutCode || services.layoutCode : null,
       warehouseCode: bundle.info.remoteEligible ? services.warehouseCode : bundle.model?.warehouseCode || null,
       workspaceInfo: currentInfo,
       initialLayout: bundle.model,
@@ -69,7 +79,7 @@ export async function createWorkspaceController({ ui, root, services, createAppl
     Object.assign(currentInfo, await catalog.info(currentId));
     application.refreshWorkspaceInfo?.();
   }
-  async function transition(target) {
+  async function transition(target, force = false) {
     if (busy || disposed) return false;
     busy = true;
     catalogState.error = '';
@@ -81,7 +91,7 @@ export async function createWorkspaceController({ ui, root, services, createAppl
       source = await prepare(currentId);
       if (disposed) throw Error('页面已关闭');
       const id = typeof target === 'function' ? await target() : target;
-      if (id === currentId) return true;
+      if (id === currentId && !force) return true;
       const bundle = await prepare(id);
       if (disposed) throw Error('页面已关闭');
       await application.dispose();
@@ -96,7 +106,7 @@ export async function createWorkspaceController({ ui, root, services, createAppl
       if (detached && source && !disposed) {
         try {
           await application?.dispose();
-          await mount(source);
+          await mount(await prepare(source.id));
         } catch (restoreError) {
           ui.patch({ loadError: restoreError.message, ready: false });
         }
@@ -168,6 +178,54 @@ export async function createWorkspaceController({ ui, root, services, createAppl
       return application.openLayout();
     },
     openWorkspace: id => transition(id),
+    async uploadWorkspace(code) {
+      const uploaded = await transition(
+        () => uploadWorkspace({ catalog, remote: services.remote, scope: services.remoteScope, id: currentId, code }),
+        true
+      );
+      if (uploaded) await application.setMode?.('edit');
+      return uploaded;
+    },
+    async refreshServerLayouts() {
+      if (busy || disposed) return;
+      busy = true;
+      catalogState.error = '';
+      publish();
+      try {
+        if (!services.remote) throw Error('尚未配置地图服务');
+        catalogState.serverLayouts = await services.remote.listLayouts();
+      } catch (error) {
+        catalogState.error = error.message;
+      } finally {
+        busy = false;
+        publish();
+      }
+    },
+    openServerLayout: code =>
+      transition(async () => {
+        if (!services.remote) throw Error('尚未配置地图服务');
+        const projects = await catalog.list();
+        const existing = projects
+          .flatMap(p => p.workspaces)
+          .find(w => w.remoteScope === services.remoteScope && w.remoteLayoutCode === code);
+        if (existing) return existing.workspaceId;
+        const draft = await services.remote.getServerDraft(code);
+        const layout = validateLayout(draft.layout);
+        if (
+          draft.layoutCode !== code ||
+          layout.layoutCode !== code ||
+          !Number.isSafeInteger(draft.draftRevision) ||
+          draft.draftRevision < 0
+        )
+          throw Error('服务器草稿契约无效');
+        const id = await catalog.importProject({
+          layout,
+          resources: emptyResources(),
+          names: { projectName: code, schemeName: '服务器草稿' },
+        });
+        await catalog.connectRemote(id, services.remoteScope, layout, draft);
+        return id;
+      }),
     createMap: input => transition(() => catalog.createMap(input)),
     copyWorkspace: name => transition(() => catalog.copy(currentId, name)),
     renameProject: (id, name) => rename(() => catalog.renameProject(id, name)),
