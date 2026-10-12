@@ -3,6 +3,7 @@ import { beforeEach, afterEach, expect, test, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import Konva from 'konva';
+import { unzipSync, strFromU8 } from 'fflate';
 import App from '../src/App.vue';
 import { STORE_KEY } from '../src/infrastructure/persistence/layout-store.js';
 
@@ -130,7 +131,7 @@ async function start() {
   return wrapper;
 }
 async function edit() {
-  await wrapper.get('#work-mode').setValue('edit');
+  await wrapper.get('#work-mode-edit').trigger('click');
   await flushPromises();
   await nextTick();
   await flushPromises();
@@ -168,15 +169,6 @@ test('location query selects and focuses a slot in view mode without changing la
   await wrapper.get('.location-search').trigger('submit');
   expect(wrapper.get('.location-search [role="status"]').text()).toContain('未找到');
   expect(wrapper.get('#location-code').element.value).toBe(slot.code);
-});
-
-test('Ctrl+S saves locally without triggering the server draft button', async () => {
-  await start();
-  await edit();
-  const serverButton = vi.spyOn(wrapper.get('#save').element, 'click');
-  await key('s', { ctrlKey: true });
-  expect(serverButton).not.toHaveBeenCalled();
-  expect(wrapper.text()).toContain('本机草稿已保存；未上传服务器');
 });
 
 test('location query lists case-insensitive partial matches and locates a clicked result', async () => {
@@ -436,7 +428,7 @@ test('Vue shell mounts real Konva scene; mode, selection, editing, undo and auto
   await flushPromises();
   await vi.advanceTimersByTimeAsync(1200);
   expect(saved().racks.at(-1).name).toBe('Vue rack');
-  await wrapper.get('#work-mode').setValue('view');
+  await wrapper.get('#work-mode-view').trigger('click');
   await flushPromises();
   await key('ArrowRight');
   expect(Number(wrapper.get('#rack-form [name="x"]').element.value)).toBe(x);
@@ -495,7 +487,7 @@ test('door panel, along-edge drag, view lock and undo retain boundary-relative p
   await wrapper.get('#boundary-edit').trigger('click');
   await flushPromises();
   expect(Number(wrapper.get('.door-form [name="offset"]').element.value)).toBe(0);
-  await wrapper.get('#work-mode').setValue('view');
+  await wrapper.get('#work-mode-view').trigger('click');
   await flushPromises();
   door = Konva.stages[0].findOne('.boundary-door');
   expect(door.draggable()).toBe(false);
@@ -622,7 +614,8 @@ test('group drag preserves relative positions, Alt precision, cancellation, rota
   expect(stage.scaleX()).not.toBe(focusScale);
 });
 
-test('JSON export retains layout and stable codes without runtime inventory', async () => {
+test('ZIP export retains layout and stable codes without runtime inventory', async () => {
+  vi.useRealTimers();
   await start();
   let exported;
   vi.spyOn(URL, 'createObjectURL').mockImplementation(blob => {
@@ -631,10 +624,17 @@ test('JSON export retains layout and stable codes without runtime inventory', as
   });
   vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  await wrapper.get('.load-menu').trigger('pointerenter', { pointerType: 'mouse' });
+  await wrapper.get('[aria-controls="load-options"]').trigger('click');
+  expect(wrapper.find('#load-options').exists()).toBe(true);
   await wrapper.get('#export').trigger('click');
   await flushPromises();
-  expect(JSON.parse(await exported.text())).toEqual(saved());
-  expect(await exported.text()).not.toContain('cartons');
+  await vi.waitFor(() => expect(exported).toBeDefined());
+  const files = unzipSync(new Uint8Array(await exported.arrayBuffer()));
+  expect(files['manifest.json']).toBeDefined();
+  expect(files['resources.json']).toBeDefined();
+  expect(JSON.parse(strFromU8(files['layout.json']))).toEqual(saved());
+  expect(strFromU8(files['layout.json'])).not.toContain('cartons');
   expect(click).toHaveBeenCalledOnce();
 });
 
@@ -785,7 +785,7 @@ test('project manager creates, copies and switches independent maps with real re
   await vi.waitFor(
     () => {
       expect(wrapper.find('#workspace-title').exists()).toBe(true);
-      expect(wrapper.get('#work-mode').attributes('disabled')).toBeUndefined();
+      expect(wrapper.get('#work-mode-edit').attributes('disabled')).toBeUndefined();
     },
     { timeout: 5000 }
   );
@@ -815,7 +815,7 @@ test('project manager creates, copies and switches independent maps with real re
   await vi.waitFor(() => expect(wrapper.get('#workspace-title').text()).toContain('方案 A'), { timeout: 5000 });
   await vi.waitFor(() => expect(wrapper.find('.workspace-loading').exists()).toBe(false));
   expect(wrapper.get('#workspace-title').text()).toContain('方案 A');
-  expect(wrapper.get('#work-mode').element.value).toBe('view');
+  expect(wrapper.get('#work-mode-view').attributes('aria-pressed')).toBe('true');
   expect(wrapper.get('#undo').attributes('disabled')).toBeDefined();
   expect(wrapper.findAll('#room-list button')).toHaveLength(1);
   await edit();

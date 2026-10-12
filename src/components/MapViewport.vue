@@ -44,8 +44,14 @@ const editableSelection = computed(
         :disabled="!editableSelection"
       >
         <ToolIcon name="precise" />精确变换</button
-      ><button id="array-open" :disabled="!editableSelection"><ToolIcon name="array" />阵列复制</button
-      ><button id="shortcut-help"><ToolIcon name="help" />快捷键</button>
+      ><button id="array-open" :disabled="!editableSelection"><ToolIcon name="array" />阵列复制</button>
+      <button id="undo" :disabled="state.workMode !== 'edit' || !state.canUndo" @click="actions.undo()">
+        <ToolIcon name="undo" />撤销
+      </button>
+      <button id="redo" :disabled="state.workMode !== 'edit' || !state.canRedo" @click="actions.redo()">
+        <ToolIcon name="redo" />重做
+      </button>
+      <button id="shortcut-help"><ToolIcon name="help" />快捷键</button>
     </div>
     <div class="canvas-wrap">
       <div id="canvas2d" :hidden="state.view !== '2d'"></div>

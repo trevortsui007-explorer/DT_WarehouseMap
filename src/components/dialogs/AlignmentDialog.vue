@@ -149,7 +149,8 @@ kbd {
 }
 .alignment-menu {
   position: absolute;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   top: 100%;
   z-index: 50;
   width: 310px;
