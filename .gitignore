@@ -23,6 +23,7 @@ pnpm-debug.log*
 # ==============================
 .idea/
 .vscode/
+.vs/
 
 *.suo
 *.user
@@ -41,6 +42,7 @@ Desktop.ini
 # ==============================
 tmp/
 temp/
+.phase1/
 *.tmp
 *.bak
 *.swp
@@ -48,3 +50,9 @@ temp/
 
 # Generated build output
 dist/
+
+# .NET backend
+**/bin/
+**/obj/
+**/TestResults/
+**/App.local.config
