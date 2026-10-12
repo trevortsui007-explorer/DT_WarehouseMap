@@ -1,4 +1,5 @@
 import { seed } from '../../core/model/model.js';
+import { blankLayout } from '../../core/workspace/projects.js';
 import { validateLayout } from '../../core/model/layout-validation.js';
 import { ensureSpatial, defaultAreas } from '../../core/spatial/spatial.js';
 
@@ -15,6 +16,13 @@ export async function loadWorkspace(local, { remote, layoutCode } = {}) {
     const code = layoutCode || 'MAIN';
     const published = await remote.getPublishedLayout(code);
     if (published.layoutCode !== code) throw Error('服务器布局身份不匹配');
+    // 明确不存在且允许编辑时准备空白工作区；点击保存草稿才创建服务器记录。
+    if (published.exists === false && published.publishedVersion === null && published.layout === null) {
+      if (published.capabilities?.canEditLayout !== true) throw Error('尚未创建布局，请联系管理员');
+      const model = blankLayout('新地图');
+      model.layoutCode = code;
+      return validateLayout(model);
+    }
     let source;
     // 只有服务端明确表示从未发布才读取服务器草稿；网络错误不能转为示例布局。
     if (published.publishedVersion === null && published.layout === null) source = await remote.getServerDraft(code);

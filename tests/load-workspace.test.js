@@ -3,6 +3,23 @@ import { loadWorkspace } from '../src/application/layout/load-workspace.js';
 import { seed } from '../src/core/model/model.js';
 import { validateLayout } from '../src/core/model/layout-validation.js';
 
+test('explicitly absent editable layout opens blank geometry without writing remote data', async () => {
+  const remote = {
+    getPublishedLayout: vi.fn(async () => ({
+      layoutCode: 'NEW',
+      exists: false,
+      publishedVersion: null,
+      layout: null,
+      capabilities: { canEditLayout: true },
+    })),
+    getServerDraft: vi.fn(),
+  };
+  const model = await loadWorkspace({ load: async () => null }, { remote, layoutCode: 'NEW' });
+  expect(model.layoutCode).toBe('NEW');
+  expect(model.racks).toEqual([]);
+  expect(remote.getServerDraft).not.toHaveBeenCalled();
+});
+
 test('fresh configured workspace loads authoritative geometry, not seed identity', async () => {
   const layout = validateLayout(seed());
   layout.racks[0].name = '服务器货架';

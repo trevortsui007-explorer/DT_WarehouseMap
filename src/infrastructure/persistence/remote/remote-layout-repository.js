@@ -1,6 +1,6 @@
 import { validateLayout } from '../../../core/model/layout-validation.js';
 
-// 定义未来 C# REST 对接边界；此处仅实现客户端请求，不代表发布校验或服务器存储已实现。
+// 远程布局接口：本地保存、共享草稿、正式版本各自独立。
 export function createRemoteLayoutRepository(request) {
   const root = '/api/wms-fg/map/layouts';
   const path = code => `${root}/${encodeURIComponent(code)}`;
@@ -8,6 +8,11 @@ export function createRemoteLayoutRepository(request) {
     listLayouts: () => request(root),
     getPublishedLayout: code => request(path(code)),
     getServerDraft: code => request(path(code) + '/draft'),
+    initializeLayout: (code, layout) =>
+      request(path(code) + '/initialize', {
+        method: 'POST',
+        body: { schemaVersion: 6, layout: validateLayout(layout) },
+      }),
     // PUT 更新草稿，发送前再次校验并剥离运行态；正式版本创建只走 publishLayout。
     saveServerDraft: (code, dto) =>
       request(path(code) + '/draft', {

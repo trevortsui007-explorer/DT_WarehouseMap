@@ -12,13 +12,15 @@ export function createRemoteLifecycle(api) {
     basedOnPublishedVersion: null,
     publishedVersion: null,
     identityVerified: false,
+    serverExists: true,
     serverDirty: true,
     capabilities: { canEditLayout: true, canSaveDraft: false, canPublishLayout: false },
   };
   let identities = new Map(),
     publishedCodes = new Set(),
     busy = false,
-    synced = null;
+    synced = null,
+    pendingPublication = null;
   const code = () => api.model().layoutCode;
   const notify = () => api.changed({ ...state, capabilities: { ...state.capabilities } });
   // 按结构化错误码或 HTTP 409 识别冲突，只更新状态，不清理本地工作或自动覆盖远端。
@@ -75,6 +77,7 @@ export function createRemoteLifecycle(api) {
       identities = new Map(slots.map(slot => [slot.id, slot.code]));
       publishedCodes = new Set(slots.map(slot => slot.code));
       state.identityVerified = true;
+      state.serverExists = published.exists !== false;
       state.publishedVersion = published.publishedVersion;
       state.capabilities = {
         canEditLayout: published.capabilities?.canEditLayout === true,
@@ -86,13 +89,22 @@ export function createRemoteLifecycle(api) {
         state.draftRevision = checkpoint.draftRevision;
         state.basedOnPublishedVersion = checkpoint.basedOnPublishedVersion;
         synced = checkpoint.synced;
+        pendingPublication = checkpoint.pendingPublication || null;
+      }
+      if (!state.serverExists) {
+        state.draftRevision = null;
+        state.basedOnPublishedVersion = null;
+        synced = null;
+        pendingPublication = null;
       }
       state.serverDirty = synced !== JSON.stringify(api.model());
       state.status = 'ready';
       state.error = null;
       notify();
+      return true;
     } catch (error) {
       failure(error);
+      return false;
     } finally {
       busy = false;
     }
@@ -103,6 +115,7 @@ export function createRemoteLifecycle(api) {
       draftRevision: state.draftRevision,
       basedOnPublishedVersion: state.basedOnPublishedVersion,
       synced,
+      pendingPublication,
     });
   }
   // busy 阻止并行远程操作；finally 无论成功失败都释放忙状态。
@@ -126,7 +139,8 @@ export function createRemoteLifecycle(api) {
       if (!api.remote) unavailable();
       if (!state.capabilities.canSaveDraft)
         throw Object.assign(Error('没有保存服务器草稿的能力'), { code: 'FORBIDDEN' });
-      if (state.draftRevision === null) throw Error('请先载入服务器草稿以建立并发基线；本机布局可先导出');
+      if (state.draftRevision === null && state.serverExists)
+        throw Error('请先载入服务器草稿以建立并发基线；本机布局可先导出');
       if (state.status === 'conflict')
         throw Object.assign(Error('草稿存在冲突，请载入服务器草稿或保留并导出本机工作'), {
           code: 'LAYOUT_DRAFT_CONFLICT',
@@ -134,6 +148,21 @@ export function createRemoteLifecycle(api) {
       assertIdentity(layout);
       state.status = 'saving';
       notify();
+      if (!state.serverExists) {
+        const created = await api.remote.initializeLayout(code(), layout);
+        if (created.layoutCode !== code() || created.draftRevision !== 0 || created.basedOnPublishedVersion !== null)
+          throw Error('初始化响应契约无效');
+        state.serverExists = true;
+        state.draftRevision = 0;
+        state.basedOnPublishedVersion = null;
+        synced = JSON.stringify(layout);
+        await checkpoint();
+        state.serverDirty = synced !== JSON.stringify(api.model());
+        state.status = 'saved';
+        state.error = null;
+        notify();
+        return true;
+      }
       const response = await api.remote.saveServerDraft(code(), {
         expectedDraftRevision: state.draftRevision,
         basedOnPublishedVersion: state.basedOnPublishedVersion,
@@ -193,7 +222,21 @@ export function createRemoteLifecycle(api) {
         throw Error('请先保存当前服务器草稿再发布');
       state.status = 'publishing';
       notify();
+      if (
+        !pendingPublication ||
+        pendingPublication.expectedDraftRevision !== state.draftRevision ||
+        pendingPublication.basedOnPublishedVersion !== state.basedOnPublishedVersion
+      ) {
+        pendingPublication = {
+          requestId: crypto.randomUUID(),
+          expectedDraftRevision: state.draftRevision,
+          basedOnPublishedVersion: state.basedOnPublishedVersion,
+        };
+        await checkpoint();
+      }
+      // 请求号已持久化；响应丢失后复用原号，让服务端返回同一正式版本。
       const response = await api.remote.publishLayout(code(), {
+        requestId: pendingPublication.requestId,
         expectedDraftRevision: state.draftRevision,
         basedOnPublishedVersion: state.basedOnPublishedVersion,
       });
@@ -201,7 +244,8 @@ export function createRemoteLifecycle(api) {
         response.layoutCode !== code() ||
         response.status !== 'PUBLISHED' ||
         !revision(response.publishedVersion) ||
-        response.publishedVersion <= (state.publishedVersion ?? -1)
+        response.publishedVersion < (state.publishedVersion ?? -1) ||
+        response.publishedVersion !== (pendingPublication.basedOnPublishedVersion ?? 0) + 1
       )
         throw Error('发布响应契约无效');
       state.publishedVersion = response.publishedVersion;
@@ -210,12 +254,38 @@ export function createRemoteLifecycle(api) {
         identities.set(slot.id, slot.code);
         publishedCodes.add(slot.code);
       }
-      state.draftRevision = null;
-      synced = null;
-      state.serverDirty = true;
+      state.draftRevision = revision(response.draftRevision) ? response.draftRevision : null;
+      state.basedOnPublishedVersion = response.publishedVersion;
+      pendingPublication = null;
+      if (state.draftRevision === null) synced = null;
+      state.serverDirty = synced !== JSON.stringify(api.model());
       await checkpoint();
       state.status = 'published';
       state.error = null;
+      notify();
+      return true;
+    });
+  }
+  function loadPublished() {
+    return run(async () => {
+      if (!api.remote) unavailable();
+      const result = await api.remote.getPublishedLayout(code());
+      if (result.publishedVersion == null || !result.layout) throw Error('此布局尚未发布正式版本');
+      const next = validateLayout(result.layout);
+      if (next.layoutCode !== code() || next.layoutId !== api.model().layoutId) throw Error('正式布局身份不匹配');
+      if (!(await api.replace(next))) return false;
+      identities = new Map(next.racks.flatMap(r => r.slots).map(s => [s.id, s.code]));
+      publishedCodes = new Set(identities.values());
+      state.identityVerified = true;
+      state.publishedVersion = result.publishedVersion;
+      state.draftRevision = null;
+      state.basedOnPublishedVersion = result.publishedVersion;
+      synced = null;
+      pendingPublication = null;
+      state.serverDirty = true;
+      state.status = 'published-view';
+      state.error = null;
+      await checkpoint();
       notify();
       return true;
     });
@@ -226,6 +296,7 @@ export function createRemoteLifecycle(api) {
     save,
     loadDraft,
     publish,
+    loadPublished,
     canRename,
     assertIdentity,
     changed() {

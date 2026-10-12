@@ -72,6 +72,46 @@ async function setup() {
   return { service, remote, local, replace, model: () => model };
 }
 
+test('publish retry preserves the request ID after a lost response', async () => {
+  const env = await setup();
+  await env.service.loadDraft();
+  env.remote.publishLayout.mockRejectedValueOnce(Error('response lost'));
+  expect(await env.service.publish()).toBe(false);
+  const first = env.remote.publishLayout.mock.calls[0][1].requestId;
+  expect(await env.service.publish()).toBe(true);
+  expect(env.remote.publishLayout.mock.calls[1][1].requestId).toBe(first);
+});
+
+test('publish retry after re-reading published state accepts the already committed version', async () => {
+  const env = await setup();
+  await env.service.loadDraft();
+  env.local.setRemoteState.mockImplementation(async (_, value) =>
+    env.local.getRemoteState.mockResolvedValue(structuredClone(value))
+  );
+  env.remote.publishLayout.mockRejectedValueOnce(Error('lost response'));
+  expect(await env.service.publish()).toBe(false);
+  const pendingId = env.remote.publishLayout.mock.calls[0][1].requestId;
+  env.remote.getPublishedLayout.mockResolvedValue({
+    layoutCode: 'MAIN',
+    publishedVersion: 22,
+    layout: structuredClone(env.model()),
+    capabilities: { canEditLayout: true, canSaveDraft: true, canPublishLayout: true },
+  });
+  await env.service.initialize();
+  expect(await env.service.publish()).toBe(true);
+  expect(env.remote.publishLayout.mock.calls[1][1].requestId).toBe(pendingId);
+});
+
+test('loading published geometry requires a fresh draft baseline before saving', async () => {
+  const env = await setup();
+  await env.service.loadDraft();
+  expect(await env.service.loadPublished()).toBe(true);
+  expect(env.replace).toHaveBeenCalled();
+  expect(env.service.state.draftRevision).toBe(null);
+  expect(await env.service.save()).toBe(false);
+  expect(env.remote.saveServerDraft).not.toHaveBeenCalled();
+});
+
 test('draft revision increments without formal publication; only server Publish changes publishedVersion', async () => {
   const env = await setup();
   expect(await env.service.save()).toBe(false); // No blind overwrite before a concurrency baseline.
